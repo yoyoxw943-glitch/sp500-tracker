@@ -65,12 +65,74 @@ npx vercel dev
 npm run build
 ```
 
-## Deploy to Vercel
+## Deployment (International + China)
 
-1. Push to a GitHub repo
-2. Import the project into [Vercel](https://vercel.com)
-3. Add the three environment variables in Vercel project settings
-4. Deploy — the `vercel.json` configures the RSS proxy function automatically
+This project uses a split-origin deployment:
+
+- **Vercel** — serves visitors outside mainland China (with serverless API functions)
+- **Alibaba Cloud OSS** — serves static assets to visitors inside mainland China
+
+### 1. Push to GitHub
+
+Create a GitHub repo and push:
+
+```bash
+git remote add origin https://github.com/YOUR_USERNAME/sp500-tracker.git
+git push -u origin main
+```
+
+### 2. Set up Vercel
+
+```bash
+npx vercel login
+npx vercel link          # creates .vercel/ project link
+npx vercel env pull      # pulls down the project ID + org ID
+```
+
+Add the three `VITE_*` env vars in your **Vercel project dashboard** (Settings → Environment Variables). Vercel builds from source to include the API serverless function, so it needs these at build time.
+
+Then add these **GitHub Secrets** in your repo (Settings → Secrets and variables → Actions):
+
+| Secret | Source |
+|--------|--------|
+| `VERCEL_TOKEN` | From [vercel.com/account/tokens](https://vercel.com/account/tokens) |
+| `VERCEL_ORG_ID` | From `.vercel/project.json` → `orgId` |
+| `VERCEL_PROJECT_ID` | From `.vercel/project.json` → `projectId` |
+| `VITE_ALPHA_VANTAGE_API_KEY` | Your Alpha Vantage key (also needed for Alibaba Cloud build) |
+| `VITE_DEEPSEEK_API_KEY` | Your DeepSeek key |
+| `VITE_NEWS_API_KEY` | Your NewsAPI key |
+
+### 3. Set up Alibaba Cloud OSS
+
+1. Create an OSS bucket (Hong Kong region recommended — no ICP filing needed)
+2. Enable static website hosting on the bucket
+3. Configure CDN if desired
+
+Then add these **GitHub Secrets**:
+
+| Secret | Example |
+|--------|---------|
+| `ALIBABA_ACCESS_KEY_ID` | Your RAM user access key |
+| `ALIBABA_ACCESS_KEY_SECRET` | Your RAM user secret |
+| `ALIBABA_OSS_REGION` | `oss-cn-hongkong` |
+| `ALIBABA_OSS_ENDPOINT` | `oss-cn-hongkong.aliyuncs.com` |
+| `ALIBABA_OSS_BUCKET` | `sp500-tracker` |
+
+### 4. Geo-routing DNS
+
+Use Alibaba Cloud DNS or DNSPod to route traffic by geography:
+
+- **China mainland** → Alibaba Cloud OSS (or CDN CNAME)
+- **Default** → Vercel (CNAME to `cname.vercel-dns.com`)
+
+### CI/CD
+
+Every push to `main` triggers `.github/workflows/deploy.yml` which:
+1. Builds the project with API keys
+2. Deploys to **Vercel** (production, with serverless functions)
+3. Deploys to **Alibaba Cloud OSS** (static assets only)
+
+Pull requests get a Vercel preview deployment automatically.
 
 ## Project Structure
 
