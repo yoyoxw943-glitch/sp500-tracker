@@ -3,22 +3,25 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const PORT = 3000;
-const BASE = 'https://finnhub.io/api/v1';
-const API_KEY = loadEnvKey();
+const FINNHUB_BASE = 'https://finnhub.io/api/v1';
 
-function loadEnvKey() {
+function loadEnvKeys() {
+  const keys = { finnhub: '', news: '' };
   try {
     const envPath = resolve(process.cwd(), '.env');
     const lines = readFileSync(envPath, 'utf-8').split('\n');
     for (const line of lines) {
       const [key, ...rest] = line.split('=');
-      if (key.trim() === 'FINNHUB_API_KEY') {
-        return rest.join('=').trim();
-      }
+      const name = key.trim();
+      const val = rest.join('=').trim();
+      if (name === 'FINNHUB_API_KEY') keys.finnhub = val;
+      if (name === 'VITE_NEWS_API_KEY') keys.news = val;
     }
   } catch {}
-  return '';
+  return keys;
 }
+
+const KEYS = loadEnvKeys();
 
 const server = createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -30,27 +33,80 @@ const server = createServer(async (req, res) => {
   }
 
   const url = new URL(req.url, `http://localhost:${PORT}`);
-  if (!url.pathname.startsWith('/api/market-data')) {
+  const path = url.pathname;
+
+  // ── RSS proxy ──────────────────────────────────────────────────
+  if (path === '/api/rss-proxy') {
+    const feedUrl = url.searchParams.get('url');
+    if (!feedUrl) {
+      res.writeHead(400);
+      return res.end(JSON.stringify({ error: 'Missing url param' }));
+    }
+    const allowed = ['investopedia.com', 'morningstar.com', 'etf.com', 'awealthofcommonsense.com'];
+    try {
+      const hostname = new URL(feedUrl).hostname;
+      if (!allowed.some((d) => hostname.endsWith(d))) {
+        res.writeHead(403);
+        return res.end(JSON.stringify({ error: 'Domain not allowed' }));
+      }
+      const rssRes = await fetch(feedUrl, {
+        headers: { 'User-Agent': 'S&P500-Tracker/1.0 (RSS Reader)' },
+      });
+      const text = await rssRes.text();
+      res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+      res.writeHead(200);
+      res.end(text);
+    } catch {
+      res.writeHead(502);
+      res.end(JSON.stringify({ error: 'Failed to fetch RSS feed' }));
+    }
+    return;
+  }
+
+  // ── NewsAPI proxy ──────────────────────────────────────────────
+  if (path === '/api/news') {
+    if (!KEYS.news) {
+      res.writeHead(500);
+      return res.end(JSON.stringify({ error: 'News API key not configured' }));
+    }
+    const q = url.searchParams.get('q') || 'S&P 500 market';
+    const pageSize = url.searchParams.get('pageSize') || '50';
+    const from = url.searchParams.get('from');
+    let newsUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(q)}&sortBy=publishedAt&pageSize=${pageSize}&language=en&apiKey=${KEYS.news}`;
+    if (from) newsUrl += `&from=${encodeURIComponent(from)}`;
+    try {
+      const newsRes = await fetch(newsUrl);
+      const data = await newsRes.text();
+      res.setHeader('Content-Type', 'application/json');
+      res.writeHead(200);
+      res.end(data);
+    } catch {
+      res.writeHead(502);
+      res.end(JSON.stringify({ error: 'Upstream fetch failed' }));
+    }
+    return;
+  }
+
+  // ── Market data proxy ──────────────────────────────────────────
+  if (!path.startsWith('/api/market-data')) {
     res.writeHead(404);
     return res.end('Not found');
   }
 
   const fn = url.searchParams.get('fn');
   const symbol = url.searchParams.get('symbol') || 'SPY';
-  const from = url.searchParams.get('from');
-  const to = url.searchParams.get('to');
 
   let upstream;
 
   try {
     switch (fn) {
       case 'quote':
-        upstream = `${BASE}/quote?symbol=${symbol}&token=${API_KEY}`;
+        upstream = `${FINNHUB_BASE}/quote?symbol=${symbol}&token=${KEYS.finnhub}`;
         break;
       case 'overview': {
         const [profileRes, metricsRes] = await Promise.all([
-          fetch(`${BASE}/stock/profile2?symbol=${symbol}&token=${API_KEY}`),
-          fetch(`${BASE}/stock/metric?symbol=${symbol}&metric=all&token=${API_KEY}`),
+          fetch(`${FINNHUB_BASE}/stock/profile2?symbol=${symbol}&token=${KEYS.finnhub}`),
+          fetch(`${FINNHUB_BASE}/stock/metric?symbol=${symbol}&metric=all&token=${KEYS.finnhub}`),
         ]);
         const profile = await profileRes.json();
         const metrics = await metricsRes.json().catch(() => ({}));
@@ -60,7 +116,6 @@ const server = createServer(async (req, res) => {
         return;
       }
       case 'candle': {
-        // Yahoo Finance for historical data (free, no key)
         const range = url.searchParams.get('range') || '5d';
         const interval = url.searchParams.get('resolution') || '1d';
         const yUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${range}&interval=${interval}`;
@@ -72,7 +127,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       case 'fx':
-        upstream = `${BASE}/forex/rates?token=${API_KEY}`;
+        upstream = `${FINNHUB_BASE}/forex/rates?token=${KEYS.finnhub}`;
         break;
       default:
         res.writeHead(400);
@@ -82,15 +137,14 @@ const server = createServer(async (req, res) => {
     const upstreamRes = await fetch(upstream);
     const data = await upstreamRes.text();
     res.setHeader('Content-Type', 'application/json');
-    // Finnhub returns 429 on rate limit
     res.writeHead(upstreamRes.status === 429 ? 429 : 200);
     res.end(data);
-  } catch (err) {
+  } catch {
     res.writeHead(502);
     res.end(JSON.stringify({ error: 'Upstream fetch failed' }));
   }
 });
 
 server.listen(PORT, () => {
-  console.log(`Market data proxy (Finnhub) running on http://localhost:${PORT}`);
+  console.log(`Market data proxy running on http://localhost:${PORT}`);
 });
