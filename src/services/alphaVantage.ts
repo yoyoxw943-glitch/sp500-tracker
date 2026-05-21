@@ -4,32 +4,34 @@ import type { Sp500Quote, DailyData } from '../types';
 const LIVE_TTL = 15_000;
 const HIST_TTL = 86_400_000;
 
-async function fetchMarketData(fn: string, symbol = 'SPY', extra = ''): Promise<any> {
-  const params = new URLSearchParams({ fn, symbol });
-  if (extra) params.set('extra', extra);
+async function fetchMarketData(fn: string, extra: Record<string, string> = {}): Promise<any> {
+  const params = new URLSearchParams({ fn, ...extra });
   const res = await fetch(`/api/market-data?${params}`);
   if (!res.ok) throw new Error(`Market data proxy returned ${res.status}`);
   return res.json();
+}
+
+function toTimestamp(date: Date): number {
+  return Math.floor(date.getTime() / 1000);
 }
 
 export async function fetchQuote(): Promise<Sp500Quote> {
   const cached = getCached<Sp500Quote>('sp500_quote');
   if (cached) return cached;
 
-  const json = await fetchMarketData('GLOBAL_QUOTE');
-  const gq = json['Global Quote'];
-  if (!gq || !gq['05. price']) {
+  const json = await fetchMarketData('quote', { symbol: 'SPY' });
+  if (json.error || json.c == null) {
     throw new Error('Invalid quote response');
   }
   const quote: Sp500Quote = {
-    price: parseFloat(gq['05. price']),
-    change: parseFloat(gq['09. change']),
-    changePercent: parseFloat(gq['10. change percent'].replace('%', '')),
-    open: parseFloat(gq['02. open']),
-    volume: parseInt(gq['06. volume'], 10),
-    high: parseFloat(gq['03. high']),
-    low: parseFloat(gq['04. low']),
-    previousClose: parseFloat(gq['08. previous close']),
+    price: json.c,
+    change: json.c - json.pc,
+    changePercent: ((json.c - json.pc) / json.pc) * 100,
+    open: json.o,
+    volume: 0,
+    high: json.h,
+    low: json.l,
+    previousClose: json.pc,
     lastUpdated: new Date().toISOString(),
   };
   setCache('sp500_quote', quote, LIVE_TTL);
@@ -45,75 +47,44 @@ export interface Sp500Overview {
   dataSource: string;
 }
 
-const VALID_RANGES = {
-  price: { min: 2000, max: 10000 },
-  high52Week: { min: 3000, max: 8000 },
-  low52Week: { min: 2000, max: 7000 },
-  peRatio: { min: 15, max: 40 },
-  dividendYield: { min: 0.5, max: 3 },
+const FALLBACK_OVERVIEW: Sp500Overview = {
+  high52Week: 5878,
+  low52Week: 4835,
+  peRatio: 24.8,
+  dividendYield: 1.32,
+  marketCap: '48.2T',
+  dataSource: 'Fallback (realistic estimates)',
 };
 
-function validate(value: number, range: { min: number; max: number }, label: string): number | null {
-  if (value < range.min || value > range.max) {
-    console.warn(`[DataCheck] ${label} = ${value} is outside valid range [${range.min}–${range.max}], using fallback`);
-    return null;
-  }
-  return value;
-}
-
 export async function fetchOverview(): Promise<Sp500Overview> {
-  const FALLBACK: Sp500Overview = {
-    high52Week: 5878,
-    low52Week: 4835,
-    peRatio: 24.8,
-    dividendYield: 1.32,
-    marketCap: '48.2T',
-    dataSource: 'Fallback (realistic estimates)',
-  };
-
   const cached = getCached<Sp500Overview>('sp500_overview');
   if (cached) return cached;
 
   try {
-    const json = await fetchMarketData('OVERVIEW');
-    if (json.Note || !json.Symbol) {
-      console.warn('[DataCheck] Alpha Vantage OVERVIEW returned note or empty, using fallback');
-      setCache('sp500_overview', FALLBACK, 86_400_000);
-      return FALLBACK;
-    }
+    const json = await fetchMarketData('overview', { symbol: 'SPY' });
+    const m = json.metrics || {};
+    if (!json.name && !m['52WeekHigh']) throw new Error('No data');
 
-    const rawHigh = parseFloat(json['52WeekHigh']);
-    const rawLow = parseFloat(json['52WeekLow']);
-    const rawPE = parseFloat(json.PERatio);
-    const rawDiv = parseFloat(json.DividendYield);
-    const rawMcap = json.MarketCapitalization;
-
-    const high52Week = validate(rawHigh, VALID_RANGES.high52Week, '52W High') ?? FALLBACK.high52Week;
-    const low52Week = validate(rawLow, VALID_RANGES.low52Week, '52W Low') ?? FALLBACK.low52Week;
-    const peRatio = validate(rawPE, VALID_RANGES.peRatio, 'P/E Ratio') ?? FALLBACK.peRatio;
-    const dividendYield = validate(rawDiv, VALID_RANGES.dividendYield, 'Div Yield') ?? FALLBACK.dividendYield;
-    let marketCap = FALLBACK.marketCap;
-    if (rawMcap) {
-      const mcapNum = parseInt(rawMcap, 10);
-      if (mcapNum > 1_000_000_000) {
-        marketCap = (mcapNum / 1_000_000_000_000).toFixed(1) + 'T';
-      }
+    let marketCap = FALLBACK_OVERVIEW.marketCap;
+    if (json.marketCapitalization) {
+      // Finnhub returns market cap in million USD
+      const mcapB = json.marketCapitalization / 1000;
+      marketCap = mcapB >= 1 ? mcapB.toFixed(1) + 'T' : (json.marketCapitalization / 1000).toFixed(0) + 'B';
     }
 
     const overview: Sp500Overview = {
-      high52Week,
-      low52Week,
-      peRatio,
-      dividendYield,
+      high52Week: m['52WeekHigh'] ?? FALLBACK_OVERVIEW.high52Week,
+      low52Week: m['52WeekLow'] ?? FALLBACK_OVERVIEW.low52Week,
+      peRatio: m.peBasicExclExtraTTM ?? FALLBACK_OVERVIEW.peRatio,
+      dividendYield: m.dividendYieldIndicatedAnnual ?? FALLBACK_OVERVIEW.dividendYield,
       marketCap,
-      dataSource: 'Alpha Vantage (SPY ETF)',
+      dataSource: 'Finnhub (SPY ETF)',
     };
-
-    setCache('sp500_overview', overview, 86_400_000);
+    setCache('sp500_overview', overview, HIST_TTL);
     return overview;
   } catch {
-    setCache('sp500_overview', FALLBACK, 86_400_000);
-    return FALLBACK;
+    setCache('sp500_overview', FALLBACK_OVERVIEW, HIST_TTL);
+    return FALLBACK_OVERVIEW;
   }
 }
 
@@ -123,11 +94,9 @@ export async function fetchUsdCnyRate(): Promise<number> {
   if (cached) return cached;
 
   try {
-    const json = await fetchMarketData('FX_DAILY', 'USD', '&from_currency=USD&to_currency=CNY');
-    const series = json['Time Series FX (Daily)'];
-    if (series) {
-      const latest = Object.values(series)[0] as Record<string, string>;
-      const rate = parseFloat(latest['4. close']);
+    const json = await fetchMarketData('fx');
+    if (json.quote && json.quote.CNY) {
+      const rate = json.quote.CNY;
       if (rate > 0) {
         setCache('usd_cny_rate', rate, 3_600_000);
         return rate;
@@ -142,18 +111,25 @@ export async function fetchDaily(): Promise<DailyData[]> {
   const cached = getCached<DailyData[]>('sp500_daily');
   if (cached) return cached;
 
-  const json = await fetchMarketData('TIME_SERIES_DAILY', 'SPY', '&outputsize=compact');
-  const series = json['Time Series (Daily)'];
-  if (!series) {
-    throw new Error('Invalid daily response');
+  const to = new Date();
+  const from = new Date(to.getTime() - 7 * 86400000); // 7 days back
+  const json = await fetchMarketData('candle', {
+    symbol: 'SPY',
+    resolution: 'D',
+    from: String(toTimestamp(from)),
+    to: String(toTimestamp(to)),
+  });
+
+  if (json.s !== 'ok' || !json.t) {
+    throw new Error('Invalid candle response');
   }
-  const data: DailyData[] = Object.entries(series)
-    .slice(0, 5)
-    .map(([date, vals]: [string, unknown]) => ({
-      date,
-      close: parseFloat((vals as Record<string, string>)['4. close']),
-    }))
-    .reverse();
+
+  const data: DailyData[] = json.t
+    .slice(-5)
+    .map((ts: number, i: number) => ({
+      date: new Date(ts * 1000).toISOString().split('T')[0],
+      close: json.c?.[json.t.length - 5 + i] ?? 0,
+    }));
   setCache('sp500_daily', data, HIST_TTL);
   return data;
 }
@@ -165,58 +141,52 @@ export async function fetchHistory(range: HistoryRange): Promise<DailyData[]> {
   const cached = getCached<DailyData[]>(cacheKey);
   if (cached) return cached;
 
-  let fn: string;
-  let extra = '&outputsize=compact';
-  let cutoff: Date;
+  const to = new Date();
+  const from = new Date();
+  let resolution: string;
 
-  const now = new Date();
   switch (range) {
     case '1M':
-      fn = 'TIME_SERIES_DAILY';
-      cutoff = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      from.setMonth(from.getMonth() - 1);
+      resolution = 'D';
       break;
     case '3M':
-      fn = 'TIME_SERIES_DAILY';
-      cutoff = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      from.setMonth(from.getMonth() - 3);
+      resolution = 'D';
       break;
     case '6M':
-      fn = 'TIME_SERIES_DAILY';
-      cutoff = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+      from.setMonth(from.getMonth() - 6);
+      resolution = 'D';
       break;
     case '1Y':
-      fn = 'TIME_SERIES_WEEKLY';
-      cutoff = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+      from.setFullYear(from.getFullYear() - 1);
+      resolution = 'W';
       break;
     case '3Y':
-      fn = 'TIME_SERIES_MONTHLY';
-      cutoff = new Date(now.getFullYear() - 3, now.getMonth(), now.getDate());
+      from.setFullYear(from.getFullYear() - 3);
+      resolution = 'W';
       break;
     case '5Y':
-      fn = 'TIME_SERIES_MONTHLY';
-      cutoff = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
+      from.setFullYear(from.getFullYear() - 5);
+      resolution = 'M';
       break;
   }
 
-  const json = await fetchMarketData(fn, 'SPY', extra);
-  const seriesKey = fn === 'TIME_SERIES_DAILY'
-    ? 'Time Series (Daily)'
-    : fn === 'TIME_SERIES_WEEKLY'
-      ? 'Weekly Time Series'
-      : 'Monthly Time Series';
-  const series = json[seriesKey];
+  const json = await fetchMarketData('candle', {
+    symbol: 'SPY',
+    resolution,
+    from: String(toTimestamp(from)),
+    to: String(toTimestamp(to)),
+  });
 
-  if (!series) {
-    throw new Error(`Invalid ${fn} response`);
+  if (json.s !== 'ok' || !json.t) {
+    throw new Error('Invalid candle response');
   }
 
-  const data: DailyData[] = Object.entries(series)
-    .filter(([date]) => new Date(date) >= cutoff)
-    .map(([date, vals]: [string, unknown]) => ({
-      date,
-      close: parseFloat((vals as Record<string, string>)['4. close']),
-    }))
-    .reverse();
-
+  const data: DailyData[] = json.t.map((ts: number, i: number) => ({
+    date: new Date(ts * 1000).toISOString().split('T')[0],
+    close: json.c?.[i] ?? 0,
+  }));
   setCache(cacheKey, data, HIST_TTL);
   return data;
 }

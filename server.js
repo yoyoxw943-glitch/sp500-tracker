@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const PORT = 3000;
-const BASE = 'https://www.alphavantage.co/query';
+const BASE = 'https://finnhub.io/api/v1';
 const API_KEY = loadEnvKey();
 
 function loadEnvKey() {
@@ -12,23 +12,12 @@ function loadEnvKey() {
     const lines = readFileSync(envPath, 'utf-8').split('\n');
     for (const line of lines) {
       const [key, ...rest] = line.split('=');
-      if (key.trim() === 'ALPHA_VANTAGE_API_KEY') {
+      if (key.trim() === 'FINNHUB_API_KEY') {
         return rest.join('=').trim();
       }
     }
   } catch {}
-  return 'demo';
-}
-
-// Free tier: 5 req/min, use 10s gap for responsiveness
-let lastCall = 0;
-const MIN_GAP = 10_000;
-
-function throttle() {
-  const now = Date.now();
-  const wait = Math.max(0, MIN_GAP - (now - lastCall));
-  lastCall = now + wait;
-  return new Promise(r => setTimeout(r, wait));
+  return '';
 }
 
 const server = createServer(async (req, res) => {
@@ -48,20 +37,44 @@ const server = createServer(async (req, res) => {
 
   const fn = url.searchParams.get('fn');
   const symbol = url.searchParams.get('symbol') || 'SPY';
-  const extra = url.searchParams.get('extra') || '';
+  const from = url.searchParams.get('from');
+  const to = url.searchParams.get('to');
 
-  if (!fn) {
-    res.writeHead(400);
-    return res.end('Missing fn param');
-  }
+  let upstream;
 
   try {
-    await throttle();
-    const upstream = `${BASE}?function=${fn}&symbol=${symbol}&apikey=${API_KEY}${extra}`;
+    switch (fn) {
+      case 'quote':
+        upstream = `${BASE}/quote?symbol=${symbol}&token=${API_KEY}`;
+        break;
+      case 'overview': {
+        const [profileRes, metricsRes] = await Promise.all([
+          fetch(`${BASE}/stock/profile2?symbol=${symbol}&token=${API_KEY}`),
+          fetch(`${BASE}/stock/metric?symbol=${symbol}&metric=all&token=${API_KEY}`),
+        ]);
+        const profile = await profileRes.json();
+        const metrics = await metricsRes.json().catch(() => ({}));
+        res.setHeader('Content-Type', 'application/json');
+        res.writeHead(200);
+        res.end(JSON.stringify({ ...profile, metrics: metrics.metric || {} }));
+        return;
+      }
+      case 'candle':
+        upstream = `${BASE}/stock/candle?symbol=${symbol}&resolution=${url.searchParams.get('resolution') || 'D'}&from=${from}&to=${to}&token=${API_KEY}`;
+        break;
+      case 'fx':
+        upstream = `${BASE}/forex/rates?token=${API_KEY}`;
+        break;
+      default:
+        res.writeHead(400);
+        return res.end('Missing or invalid fn param');
+    }
+
     const upstreamRes = await fetch(upstream);
     const data = await upstreamRes.text();
     res.setHeader('Content-Type', 'application/json');
-    res.writeHead(upstreamRes.status);
+    // Finnhub returns 429 on rate limit
+    res.writeHead(upstreamRes.status === 429 ? 429 : 200);
     res.end(data);
   } catch (err) {
     res.writeHead(502);
@@ -70,5 +83,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`Market data proxy running on http://localhost:${PORT}`);
+  console.log(`Market data proxy (Finnhub) running on http://localhost:${PORT}`);
 });
