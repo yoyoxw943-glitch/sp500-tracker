@@ -37,15 +37,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Vercel deploys from source so it can build the api/ serverless function.
-      # Env vars must be set in Vercel project dashboard (Settings → Environment Variables).
-      - name: Deploy to Vercel (Production)
-        uses: amondnet/vercel-action@v25
+      - uses: actions/setup-node@v4
         with:
-          vercel-args: --prod
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          node-version: 22
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+      - name: Deploy to Vercel (Production)
+        run: vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
   deploy-vercel-preview:
     needs: build
@@ -53,12 +54,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy to Vercel (Preview)
-        uses: amondnet/vercel-action@v25
+      - uses: actions/setup-node@v4
         with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          node-version: 22
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+      - name: Deploy to Vercel (Preview)
+        run: vercel deploy --token=${{ secrets.VERCEL_TOKEN }} --yes
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
   deploy-aliyun:
     needs: build
@@ -72,8 +77,11 @@ jobs:
 
       - name: Setup ossutil
         run: |
-          sudo curl -L https://gosspublic.alicdn.com/ossutil/1.7.19/ossutil64 -o /usr/local/bin/ossutil
-          sudo chmod +x /usr/local/bin/ossutil
+          curl -fsSL https://github.com/aliyun/ossutil/releases/download/v1.7.19/ossutil-v1.7.19-linux-amd64.zip -o ossutil.zip
+          unzip ossutil.zip
+          mv ossutil-v1.7.19-linux-amd64/ossutil /usr/local/bin/ossutil
+          chmod +x /usr/local/bin/ossutil
+          ossutil version
 
       # OSS_ENDPOINT should be set to: oss-cn-shanghai.aliyuncs.com
       - name: Configure ossutil
