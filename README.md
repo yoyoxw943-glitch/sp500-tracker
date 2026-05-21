@@ -104,7 +104,7 @@ Then add these **GitHub Secrets** in your repo (Settings → Secrets and variabl
 
 ### 3. Set up Alibaba Cloud OSS
 
-1. Create an OSS bucket (Hong Kong region recommended — no ICP filing needed)
+1. Create an OSS bucket in Shanghai region
 2. Enable static website hosting on the bucket
 3. Configure CDN if desired
 
@@ -112,11 +112,11 @@ Then add these **GitHub Secrets**:
 
 | Secret | Example |
 |--------|---------|
-| `ALIBABA_ACCESS_KEY_ID` | Your RAM user access key |
-| `ALIBABA_ACCESS_KEY_SECRET` | Your RAM user secret |
-| `ALIBABA_OSS_REGION` | `oss-cn-hongkong` |
-| `ALIBABA_OSS_ENDPOINT` | `oss-cn-hongkong.aliyuncs.com` |
-| `ALIBABA_OSS_BUCKET` | `sp500-tracker` |
+| `OSS_ACCESS_KEY_ID` | Your RAM user access key |
+| `OSS_ACCESS_KEY_SECRET` | Your RAM user secret |
+| `OSS_REGION` | `oss-cn-shanghai` |
+| `OSS_ENDPOINT` | `oss-cn-shanghai.aliyuncs.com` |
+| `OSS_BUCKET` | `sp500-tracker` |
 
 ### 4. Geo-routing DNS
 
