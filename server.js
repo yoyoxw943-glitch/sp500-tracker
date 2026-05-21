@@ -59,9 +59,18 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify({ ...profile, metrics: metrics.metric || {} }));
         return;
       }
-      case 'candle':
-        upstream = `${BASE}/stock/candle?symbol=${symbol}&resolution=${url.searchParams.get('resolution') || 'D'}&from=${from}&to=${to}&token=${API_KEY}`;
-        break;
+      case 'candle': {
+        // Yahoo Finance for historical data (free, no key)
+        const range = url.searchParams.get('range') || '5d';
+        const interval = url.searchParams.get('resolution') || '1d';
+        const yUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${range}&interval=${interval}`;
+        const yRes = await fetch(yUrl);
+        const yData = await yRes.text();
+        res.setHeader('Content-Type', 'application/json');
+        res.writeHead(yRes.status === 429 ? 429 : 200);
+        res.end(yData);
+        return;
+      }
       case 'fx':
         upstream = `${BASE}/forex/rates?token=${API_KEY}`;
         break;

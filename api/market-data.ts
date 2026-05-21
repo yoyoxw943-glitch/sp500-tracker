@@ -32,9 +32,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const metrics = await metricsRes.json().catch(() => ({}));
         return res.status(200).json({ ...profile, metrics: metrics.metric || {} });
       }
-      case 'candle':
-        upstream = `${BASE}/stock/candle?symbol=${symbol}&resolution=${req.query.resolution || 'D'}&from=${from}&to=${to}&token=${API_KEY}`;
-        break;
+      case 'candle': {
+        // Yahoo Finance for historical data (free, no key)
+        const range = (req.query.range as string) || '5d';
+        const interval = (req.query.resolution as string) || '1d';
+        const yRes = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${range}&interval=${interval}`);
+        const yData = await yRes.text();
+        return res.status(yRes.status === 429 ? 429 : 200).setHeader('Content-Type', 'application/json').send(yData);
+      }
       case 'fx':
         upstream = `${BASE}/forex/rates?token=${API_KEY}`;
         break;
