@@ -75,23 +75,12 @@ jobs:
           name: dist
           path: dist
 
-      - name: Setup ossutil
-        run: |
-          curl -fsSL https://github.com/aliyun/ossutil/releases/download/v1.7.19/ossutil-v1.7.19-linux-amd64.zip -o ossutil.zip
-          unzip ossutil.zip
-          mv ossutil-v1.7.19-linux-amd64/ossutil /usr/local/bin/ossutil
-          chmod +x /usr/local/bin/ossutil
-          ossutil version
-
       # OSS_ENDPOINT should be set to: oss-cn-shanghai.aliyuncs.com
-      - name: Configure ossutil
-        run: |
-          ossutil config \
-            --access-key-id ${{ secrets.OSS_ACCESS_KEY_ID }} \
-            --access-key-secret ${{ secrets.OSS_ACCESS_KEY_SECRET }} \
-            --region ${{ secrets.OSS_REGION }} \
-            --endpoint ${{ secrets.OSS_ENDPOINT }} \
-            --language EN
+      - uses: manyuanrong/setup-ossutil@v2
+        with:
+          endpoint: ${{ secrets.OSS_ENDPOINT }}
+          access-key-id: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          access-key-secret: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
 
       - name: Deploy to Alibaba Cloud OSS
         run: |
