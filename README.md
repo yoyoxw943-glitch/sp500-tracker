@@ -31,6 +31,8 @@ npm install
 | DeepSeek | [platform.deepseek.com](https://platform.deepseek.com) | Pay-per-token (very cheap) |
 | NewsAPI | [newsapi.org](https://newsapi.org) | Free tier (100 req/day) |
 
+**Note:** Alpha Vantage is called server-side through a proxy — the key never reaches the browser.
+
 ### 3. Create .env file
 
 ```bash
@@ -40,7 +42,7 @@ cp .env.example .env
 Edit `.env` and add your API keys:
 
 ```
-VITE_ALPHA_VANTAGE_API_KEY=your_key_here
+ALPHA_VANTAGE_API_KEY=your_key_here
 VITE_DEEPSEEK_API_KEY=your_key_here
 VITE_NEWS_API_KEY=your_key_here
 ```
@@ -51,13 +53,7 @@ VITE_NEWS_API_KEY=your_key_here
 npm run dev
 ```
 
-The app opens at `http://localhost:5173`.
-
-For the RSS proxy function (used by the Learn tab), run:
-
-```bash
-npx vercel dev
-```
+Starts both the Vite dev server and the API proxy (`server.js` on port 3000). The Vite proxy forwards `/api` requests to it. The app opens at `http://localhost:5173`.
 
 ### 5. Build for production
 
@@ -89,7 +85,10 @@ npx vercel link          # creates .vercel/ project link
 npx vercel env pull      # pulls down the project ID + org ID
 ```
 
-Add the three `VITE_*` env vars in your **Vercel project dashboard** (Settings → Environment Variables). Vercel builds from source to include the API serverless function, so it needs these at build time.
+Add these env vars in your **Vercel project dashboard** (Settings → Environment Variables):
+- `ALPHA_VANTAGE_API_KEY` — needed by the `api/market-data.ts` serverless function
+- `VITE_DEEPSEEK_API_KEY` — needed at build time (client bundle)
+- `VITE_NEWS_API_KEY` — needed at build time (client bundle)
 
 Then add these **GitHub Secrets** in your repo (Settings → Secrets and variables → Actions):
 
@@ -98,7 +97,6 @@ Then add these **GitHub Secrets** in your repo (Settings → Secrets and variabl
 | `VERCEL_TOKEN` | From [vercel.com/account/tokens](https://vercel.com/account/tokens) |
 | `VERCEL_ORG_ID` | From `.vercel/project.json` → `orgId` |
 | `VERCEL_PROJECT_ID` | From `.vercel/project.json` → `projectId` |
-| `VITE_ALPHA_VANTAGE_API_KEY` | Your Alpha Vantage key (also needed for Alibaba Cloud build) |
 | `VITE_DEEPSEEK_API_KEY` | Your DeepSeek key |
 | `VITE_NEWS_API_KEY` | Your NewsAPI key |
 
@@ -141,7 +139,7 @@ src/
   components/     — Reusable UI components (Layout, skeletons, error states)
   pages/          — 6 tab pages (Live, History, News, Calculator, Learn, Portfolio)
   hooks/          — Custom hooks (theme, localStorage, countdown)
-  services/       — All API calls with caching (Alpha Vantage, DeepSeek, NewsAPI, RSS)
+  services/       — All API calls with caching (Yahoo Finance, DeepSeek, NewsAPI, RSS)
   utils/          — Helpers (cache, formatters, calculations, historical data)
   types/          — TypeScript interfaces
 api/

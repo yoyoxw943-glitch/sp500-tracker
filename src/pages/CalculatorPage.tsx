@@ -78,7 +78,7 @@ export default function CalculatorPage() {
 
       {currency === 'CNY' && (
         <p className="text-min text-slate-500">
-          Exchange rate: 1 USD = {usdCnyRate.toFixed(2)} CNY{usdCnyRate === 7.25 ? ' (fallback)' : ' (live from Alpha Vantage)'}
+          Exchange rate: 1 USD = {usdCnyRate.toFixed(2)} CNY{usdCnyRate === 7.25 ? ' (fallback)' : ' (live from Yahoo Finance)'}
         </p>
       )}
 

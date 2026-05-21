@@ -12,7 +12,9 @@ const STAGES = [
   { num: 2, title: 'Understanding the S&P 500', text: 'The S&P 500 tracks the 500 largest publicly traded US companies. It represents about 80% of the total US stock market value and is the benchmark most professional investors compare themselves against.', url: 'https://www.investopedia.com/terms/s/sp500.asp' },
   { num: 3, title: 'Choosing an ETF: VOO vs SPY vs IVV', text: 'VOO (expense ratio 0.03%), SPY (0.09%), and IVV (0.03%) all track the S&P 500 identically. For long-term investors, VOO and IVV are cheapest. SPY has higher trading volume and is preferred by active traders.', url: 'https://www.investopedia.com/articles/exchangetradedfunds/08/spdr-spy.asp' },
   { num: 4, title: 'Opening a Brokerage Account', text: 'You can open an account at Vanguard, Fidelity, Schwab, or apps like Robinhood in under 10 minutes. All offer commission-free trading of S&P 500 ETFs. Look for no account minimums and no maintenance fees.', url: 'https://www.investopedia.com/articles/younginvestors/08/start-investing.asp' },
-  { num: 5, title: 'Starting Your DCA Journey', text: 'Dollar-cost averaging means investing a fixed amount regularly regardless of price. This removes emotion from investing, automatically buys more shares when prices are low, and is the simplest path to long-term wealth.', url: 'https://www.investopedia.com/terms/d/dollarcostaveraging.asp' },
+  { num: 5, title: 'Dollar-Cost Averaging (DCA)', text: 'Dollar-cost averaging means investing a fixed amount regularly regardless of price. This removes emotion from investing, automatically buys more shares when prices are low, and is the simplest path to long-term wealth.', url: 'https://www.investopedia.com/terms/d/dollarcostaveraging.asp' },
+  { num: 6, title: 'The Power of Compound Interest', text: 'Compound interest is earning returns on your returns. At 10% annual return, $10,000 invested today becomes ~$67,000 in 20 years — without adding another dollar. The earlier you start, the more powerful compounding becomes.', url: 'https://www.investopedia.com/terms/c/compoundinterest.asp' },
+  { num: 7, title: 'Tax-Advantaged Accounts: IRA & 401(k)', text: 'Maximize tax-advantaged accounts before taxable ones. A Roth IRA grows tax-free, while Traditional IRAs and 401(k)s offer immediate tax deductions. In 2025, the 401(k) contribution limit is $23,500.', url: 'https://www.investopedia.com/articles/retirement/08/ira-vs-401k.asp' },
 ];
 
 const STARTER_QUESTIONS = [
@@ -20,6 +22,8 @@ const STARTER_QUESTIONS = [
   'How does compound interest work?',
   'Is now a good time to invest?',
   "What's the difference between VOO and SPY?",
+  'How much should I invest each month?',
+  'What is an expense ratio and why does it matter?',
 ];
 
 const VIDEOS = [
@@ -27,6 +31,8 @@ const VIDEOS = [
   { id: 'WRx7wkWqlY8', title: 'How To Invest In The S&P 500 EASY Step-By-Step Guide for 2025', channel: 'Step-by-Step Investing' },
   { id: 'Pbl7NHAGc8o', title: 'DIY Investing: S&P 500 Index Explained', channel: 'Index Fund Deep Dive' },
   { id: '1B0CRtgk3Gw', title: 'How To Invest In The S&P 500 For Beginners In 2025', channel: 'Beginner Investing' },
+  { id: 'ZflU1E7jLkA', title: 'Warren Buffett: How To Invest For Beginners', channel: 'Investor Wisdom' },
+  { id: 'Rl9D8z1JoxA', title: 'Compound Interest Explained — Why You Need To Start Early', channel: 'Financial Education' },
 ];
 
 export default function LearnPage() {
@@ -141,6 +147,17 @@ function Roadmap() {
   );
 }
 
+const FALLBACK_KNOWLEDGE: KnowledgeArticle[] = [
+  { title: 'What Is an Index Fund and How Does It Work?', source: 'Investopedia', publishedAt: new Date().toISOString(), url: 'https://www.investopedia.com/terms/i/indexfund.asp', readTime: '6 min read', summary: 'An index fund is a portfolio of stocks designed to match or track a financial market index like the S&P 500. It provides broad market exposure, low operating expenses, and low portfolio turnover.', concept: 'Index Fund' },
+  { title: 'Exchange-Traded Fund (ETF) Explained', source: 'Investopedia', publishedAt: new Date().toISOString(), url: 'https://www.investopedia.com/terms/e/etf.asp', readTime: '7 min read', summary: 'ETFs are baskets of securities that trade on an exchange like a stock. They offer diversification, lower costs than mutual funds, and tax efficiency — making them ideal for long-term investors.', concept: 'ETF' },
+  { title: 'Understanding Expense Ratios: Why Costs Matter', source: 'Morningstar', publishedAt: new Date().toISOString(), url: 'https://www.investopedia.com/terms/e/expenseratio.asp', readTime: '5 min read', summary: 'The expense ratio is the annual fee funds charge shareholders. A difference of 0.5% can cost tens of thousands over decades — this is why low-cost index funds win.', concept: 'Expense Ratio' },
+  { title: 'Dollar-Cost Averaging: The Simple Path to Wealth', source: 'A Wealth of Common Sense', publishedAt: new Date().toISOString(), url: 'https://www.investopedia.com/terms/d/dollarcostaveraging.asp', readTime: '6 min read', summary: 'DCA involves investing fixed amounts on a regular schedule. It removes emotion, reduces the impact of volatility, and automatically buys more when prices drop and less when they rise.', concept: 'Dollar Cost Averaging' },
+  { title: 'The Miracle of Compound Interest', source: 'Investopedia', publishedAt: new Date().toISOString(), url: 'https://www.investopedia.com/terms/c/compoundinterest.asp', readTime: '5 min read', summary: 'Compound interest is interest on interest — the force that makes modest regular investments grow exponentially over decades. Starting 10 years earlier can double your final balance.', concept: 'Compound Interest' },
+  { title: 'What Is a Market Drawdown and How to Handle It', source: 'Morningstar', publishedAt: new Date().toISOString(), url: 'https://www.investopedia.com/terms/d/drawdown.asp', readTime: '5 min read', summary: 'A drawdown is the peak-to-trough decline of your portfolio. Knowing that 10-20% drawdowns are normal and temporary helps investors stay disciplined during market turbulence.', concept: 'Drawdown' },
+  { title: 'Portfolio Rebalancing: When and How to Do It', source: 'Bogleheads', publishedAt: new Date().toISOString(), url: 'https://www.bogleheads.org/wiki/Rebalancing', readTime: '6 min read', summary: 'Rebalancing restores your target asset allocation by selling winners and buying losers. Annual rebalancing is simple and effective; more frequent rebalancing adds complexity without better results.', concept: 'Rebalancing' },
+  { title: 'DRIP: Dividend Reinvestment Plans Explained', source: 'Investopedia', publishedAt: new Date().toISOString(), url: 'https://www.investopedia.com/terms/d/dividendreinvestmentplan.asp', readTime: '5 min read', summary: 'DRIP automatically reinvests dividends to buy more shares. Over decades, reinvested dividends can account for over 50% of total returns — a powerful, passive wealth-building tool.', concept: 'Dividend Reinvestment' },
+];
+
 function KnowledgeBase() {
   const [articles, setArticles] = useState<KnowledgeArticle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,7 +165,8 @@ function KnowledgeBase() {
 
   useEffect(() => {
     fetchKnowledgeArticles().then((data) => {
-      setArticles(data);
+      const final = data.length > 0 ? data : FALLBACK_KNOWLEDGE;
+      setArticles(final);
       setLoading(false);
       data.forEach(async (a, idx) => {
         if (!a.summary) {
@@ -158,6 +176,9 @@ function KnowledgeBase() {
           } catch { /* skip */ }
         }
       });
+    }).catch(() => {
+      setArticles(FALLBACK_KNOWLEDGE);
+      setLoading(false);
     });
   }, []);
 
@@ -192,12 +213,27 @@ function KnowledgeBase() {
   );
 }
 
+const FALLBACK_READING: ReadingArticle[] = [
+  { title: 'The Case for Index Fund Investing', source: 'A Wealth of Common Sense', date: new Date().toISOString(), url: 'https://awealthofcommonsense.com/', summary: 'Why low-cost index funds remain the best choice for 99% of individual investors.' },
+  { title: 'How to Build a Simple Three-Fund Portfolio', source: 'Bogleheads', date: new Date().toISOString(), url: 'https://www.bogleheads.org/wiki/Three-fund_portfolio', summary: 'A simple, low-cost three-fund portfolio using total US stock, total international stock, and total bond market index funds.' },
+  { title: 'Why Market Timing Doesn\'t Work', source: 'Morningstar', date: new Date().toISOString(), url: 'https://www.morningstar.com/', summary: 'Research shows that staying invested through market cycles significantly outperforms trying to time entries and exits.' },
+  { title: 'ETF vs Mutual Fund: Which Should You Choose?', source: 'Investopedia', date: new Date().toISOString(), url: 'https://www.investopedia.com/articles/exchangetradedfunds/08/etf-mutual-fund-difference.asp', summary: 'A comparison of ETFs and mutual funds covering tax efficiency, minimum investments, trading flexibility, and costs.' },
+  { title: 'Understanding Sequence of Returns Risk', source: 'A Wealth of Common Sense', date: new Date().toISOString(), url: 'https://awealthofcommonsense.com/', summary: 'The order of your investment returns matters greatly near retirement — how to protect against bad timing.' },
+  { title: 'Bogleheads Investment Philosophy: 10 Principles', source: 'Bogleheads', date: new Date().toISOString(), url: 'https://www.bogleheads.org/wiki/Bogleheads%C2%AE_investment_philosophy', summary: 'Develop a workable plan, invest early and often, never bear too much or too little risk, diversify, keep costs low.' },
+];
+
 function CuratedReading() {
   const [articles, setArticles] = useState<ReadingArticle[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchCuratedReading().then((data) => { setArticles(data); setLoading(false); });
+    fetchCuratedReading().then((data) => {
+      setArticles(data.length > 0 ? data : FALLBACK_READING);
+      setLoading(false);
+    }).catch(() => {
+      setArticles(FALLBACK_READING);
+      setLoading(false);
+    });
   }, []);
 
   if (loading) return <div className="space-y-3"><CardSkeleton /><CardSkeleton /></div>;
@@ -205,20 +241,16 @@ function CuratedReading() {
   return (
     <div className="space-y-3">
       <p className="text-min text-slate-500">Top content this week, filtered for long-term investors</p>
-      {articles.length === 0 ? (
-        <p className="text-center text-slate-500 py-10">No articles found. The RSS feeds may be unavailable right now.</p>
-      ) : (
-        articles.map((a, i) => (
-          <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="card block">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-sm font-bold text-slate-500 uppercase">{a.source}</span>
-              <span className="text-sm text-slate-400">{formatDate(a.date)}</span>
-            </div>
-            <h4 className="text-lg font-semibold">{a.title}</h4>
-            <p className="text-min text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">{a.summary}</p>
-          </a>
-        ))
-      )}
+      {articles.map((a, i) => (
+        <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="card block group">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-sm font-bold text-slate-500 uppercase">{a.source}</span>
+            <span className="text-sm text-slate-400">{formatDate(a.date)}</span>
+          </div>
+          <h4 className="text-lg font-semibold group-hover:text-[#0EA5E9] dark:group-hover:text-[#60A5FA] transition-colors">{a.title}</h4>
+          <p className="text-min text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">{a.summary}</p>
+        </a>
+      ))}
     </div>
   );
 }
@@ -275,7 +307,7 @@ function ChatInterface() {
                 <div className="mt-3 pt-2 border-t border-[#BAE6FD] dark:border-[#2563EB]/20">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 dark:text-slate-500">
                     <span>Powered by {MODEL_NAME}</span>
-                    <span>Market data: Alpha Vantage | News: NewsAPI</span>
+                    <span>Market data: Yahoo Finance | News: NewsAPI</span>
                     <span>{new Date(m.timestamp).toLocaleString()}</span>
                   </div>
                 </div>

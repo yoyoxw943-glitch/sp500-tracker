@@ -3,7 +3,7 @@ import type { NewsArticle } from '../types';
 
 const API_KEY = import.meta.env.VITE_NEWS_API_KEY || '';
 const BASE = 'https://newsapi.org/v2';
-const TTL = 3_600_000; // 1 hour
+const TTL = 900_000; // 15 minutes
 
 const CATEGORY_KEYWORDS: Record<string, string[]> = {
   Macro: ['economy', 'gdp', 'inflation', 'jobs', 'unemployment', 'macro'],
@@ -38,7 +38,7 @@ export async function fetchNews(): Promise<NewsArticle[]> {
   }
 
   try {
-    const res = await fetch(`${BASE}/everything?q=S%26P+500+market&sortBy=publishedAt&pageSize=20&language=en&apiKey=${API_KEY}`);
+    const res = await fetch(`${BASE}/everything?q=S%26P+500+market&sortBy=publishedAt&pageSize=50&language=en&apiKey=${API_KEY}`);
     const json = await res.json();
     if (json.status === 'error') throw new Error(json.message);
     const articles: NewsArticle[] = (json.articles || []).map((a: { title: string; source: { name: string }; publishedAt: string; url: string; description?: string }) => ({

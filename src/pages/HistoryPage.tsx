@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { useState, useMemo, useEffect } from 'react';
+import { BarChart, Bar, LineChart, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { HISTORICAL_RETURNS } from '../utils/calculations';
+import { fetchHistory, type HistoryRange } from '../services/alphaVantage';
 
 type Range = '10y' | '20y' | 'all';
-type TimeRange = '1M' | '3M' | '5M' | '1Y' | '3Y' | '5Y';
+type TimeRange = '1M' | '3M' | '6M' | '1Y' | '3Y' | '5Y';
 
 const BEAR_MARKETS = [
   { title: '2000 Dot-Com Crash', peak: 'Mar 2000', trough: 'Oct 2002', decline: '-49%', recovery: '49 months', lesson: 'Valuations matter — even great companies can be terrible investments if you overpay.' },
@@ -11,46 +12,12 @@ const BEAR_MARKETS = [
   { title: '2020 COVID Crash', peak: 'Feb 2020', trough: 'Mar 2020', decline: '-34%', recovery: '5 months', lesson: 'The market rewards patience — the fastest crashes often bring the fastest recoveries.' },
 ];
 
-function generateChartData(range: TimeRange) {
-  const now = new Date();
-  let points: { date: string; price: number }[] = [];
-  let months = 0;
-  switch (range) {
-    case '1M': months = 1; break;
-    case '3M': months = 3; break;
-    case '5M': months = 5; break;
-    case '1Y': months = 12; break;
-    case '3Y': months = 36; break;
-    case '5Y': months = 60; break;
-  }
-
-  // Generate realistic S&P 500 data
-  const basePrice = 5878;
-  const monthlyVolatility = 0.04;
-  const annualDrift = 0.10 / 12;
-
-  let price = basePrice;
-  for (let i = months; i >= 0; i--) {
-    const d = new Date(now);
-    d.setMonth(d.getMonth() - i);
-    // Apply drift + random noise
-    if (i > 0) {
-      const drift = annualDrift;
-      const random = (Math.random() - 0.48) * monthlyVolatility;
-      price = price / (1 + drift + random);
-    }
-    points.push({
-      date: d.toISOString().slice(0, 10),
-      price: Math.round(price * 100) / 100,
-    });
-  }
-  return points;
-}
-
 export default function HistoryPage() {
   const [range, setRange] = useState<Range>('20y');
   const [timeRange, setTimeRange] = useState<TimeRange>('1Y');
   const [showBear, setShowBear] = useState(false);
+  const [chartData, setChartData] = useState<{ date: string; price: number }[]>([]);
+  const [chartLoading, setChartLoading] = useState(false);
 
   const data = useMemo(() => {
     const now = new Date().getFullYear();
@@ -59,7 +26,21 @@ export default function HistoryPage() {
     return HISTORICAL_RETURNS;
   }, [range]);
 
-  const chartData = useMemo(() => generateChartData(timeRange), [timeRange]);
+  useEffect(() => {
+    let cancelled = false;
+    setChartLoading(true);
+    fetchHistory(timeRange as HistoryRange)
+      .then((result) => {
+        if (!cancelled) {
+          setChartData(result.map(d => ({ date: d.date, price: d.close })));
+          setChartLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setChartLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [timeRange]);
 
   const positivePct = useMemo(() => {
     const all = range === 'all' ? HISTORICAL_RETURNS : data;
@@ -90,7 +71,7 @@ export default function HistoryPage() {
 
         {/* Time Range Filter Buttons */}
         <div className="flex gap-1 bg-[#0EA5E9]/8 rounded-xl p-1 w-fit mb-4">
-          {(['1M', '3M', '5M', '1Y', '3Y', '5Y'] as TimeRange[]).map((t) => (
+          {(['1M', '3M', '6M', '1Y', '3Y', '5Y'] as TimeRange[]).map((t) => (
             <button
               key={t}
               onClick={() => setTimeRange(t)}
@@ -104,25 +85,31 @@ export default function HistoryPage() {
         </div>
 
         <div aria-label={`S&P 500 price chart for ${timeRange} range`}>
+          {chartLoading && <div className="text-center py-10 text-slate-400">Loading market data...</div>}
+          {!chartLoading && chartData.length > 0 && (
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData}>
+            <LineChart data={chartData}>
+              <defs>
+                <linearGradient id="lineGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#0EA5E9" stopOpacity={0.3} />
+                  <stop offset="100%" stopColor="#0EA5E9" stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <XAxis dataKey="date" tick={{ fontSize: 13, fill: '#64748B' }} stroke="#BAE6FD" tickFormatter={(d) => {
                 const date = new Date(d);
-                if (timeRange === '1M' || timeRange === '3M') return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                if (timeRange === '1M' || timeRange === '3M' || timeRange === '6M') return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-              }} interval={timeRange === '5Y' ? 11 : timeRange === '3Y' ? 5 : 'preserveStartEnd'} />
+              }} interval={timeRange === '5Y' ? 11 : timeRange === '3Y' ? 5 : timeRange === '6M' || timeRange === '1Y' ? 9 : 'preserveStartEnd'} />
               <YAxis tick={{ fontSize: 14, fill: '#64748B' }} stroke="#BAE6FD" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} width={55} domain={['auto', 'auto']} />
               <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '12px', fontSize: '15px', color: '#0F172A' }}
                 formatter={(v) => [formatCurrency(Number(v)), 'Price']}
                 labelFormatter={(l) => `Date: ${l}`}
               />
-              <Bar dataKey="price" radius={[4, 4, 0, 0]} fill="#0EA5E9">
-                {chartData.map((entry, i) => (
-                  <Cell key={i} fill={i > 0 && entry.price >= chartData[i - 1]?.price ? '#16A34A' : '#DC2626'} />
-                ))}
-              </Bar>
-            </BarChart>
+              <Area type="monotone" dataKey="price" fill="url(#lineGradient)" stroke="none" />
+              <Line type="monotone" dataKey="price" stroke="#0EA5E9" strokeWidth={2} dot={false} />
+            </LineChart>
           </ResponsiveContainer>
+          )}
         </div>
       </div>
 

@@ -1,26 +1,25 @@
 import { getCached, setCache } from '../utils/cache';
 import type { Sp500Quote, DailyData } from '../types';
 
-const API_KEY = import.meta.env.VITE_ALPHA_VANTAGE_API_KEY || 'demo';
-const BASE = 'https://www.alphavantage.co/query';
-
-// Cache TTLs: 60s for live quote, 24h for historical
-const LIVE_TTL = 60_000;
+const LIVE_TTL = 15_000;
 const HIST_TTL = 86_400_000;
 
-function buildUrl(fn: string, extra = ''): string {
-  return `${BASE}?function=${fn}&symbol=SPY&apikey=${API_KEY}${extra}`;
+async function fetchMarketData(fn: string, symbol = 'SPY', extra = ''): Promise<any> {
+  const params = new URLSearchParams({ fn, symbol });
+  if (extra) params.set('extra', extra);
+  const res = await fetch(`/api/market-data?${params}`);
+  if (!res.ok) throw new Error(`Market data proxy returned ${res.status}`);
+  return res.json();
 }
 
 export async function fetchQuote(): Promise<Sp500Quote> {
   const cached = getCached<Sp500Quote>('sp500_quote');
   if (cached) return cached;
 
-  const res = await fetch(buildUrl('GLOBAL_QUOTE'));
-  const json = await res.json();
+  const json = await fetchMarketData('GLOBAL_QUOTE');
   const gq = json['Global Quote'];
   if (!gq || !gq['05. price']) {
-    throw new Error('Alpha Vantage rate limit or invalid response');
+    throw new Error('Invalid quote response');
   }
   const quote: Sp500Quote = {
     price: parseFloat(gq['05. price']),
@@ -75,15 +74,8 @@ export async function fetchOverview(): Promise<Sp500Overview> {
   const cached = getCached<Sp500Overview>('sp500_overview');
   if (cached) return cached;
 
-  if (API_KEY === 'demo') {
-    setCache('sp500_overview', FALLBACK, 86_400_000);
-    return FALLBACK;
-  }
-
   try {
-    const res = await fetch(`${BASE}?function=OVERVIEW&symbol=SPY&apikey=${API_KEY}`);
-    const json = await res.json();
-
+    const json = await fetchMarketData('OVERVIEW');
     if (json.Note || !json.Symbol) {
       console.warn('[DataCheck] Alpha Vantage OVERVIEW returned note or empty, using fallback');
       setCache('sp500_overview', FALLBACK, 86_400_000);
@@ -130,17 +122,14 @@ export async function fetchUsdCnyRate(): Promise<number> {
   const cached = getCached<number>('usd_cny_rate');
   if (cached) return cached;
 
-  if (API_KEY === 'demo') return FALLBACK;
-
   try {
-    const res = await fetch(`${BASE}?function=FX_DAILY&from_symbol=USD&to_symbol=CNY&apikey=${API_KEY}`);
-    const json = await res.json();
+    const json = await fetchMarketData('FX_DAILY', 'USD', '&from_currency=USD&to_currency=CNY');
     const series = json['Time Series FX (Daily)'];
     if (series) {
       const latest = Object.values(series)[0] as Record<string, string>;
       const rate = parseFloat(latest['4. close']);
       if (rate > 0) {
-        setCache('usd_cny_rate', rate, 3_600_000); // 1 hour TTL
+        setCache('usd_cny_rate', rate, 3_600_000);
         return rate;
       }
     }
@@ -153,11 +142,10 @@ export async function fetchDaily(): Promise<DailyData[]> {
   const cached = getCached<DailyData[]>('sp500_daily');
   if (cached) return cached;
 
-  const res = await fetch(buildUrl('TIME_SERIES_DAILY', '&outputsize=compact'));
-  const json = await res.json();
+  const json = await fetchMarketData('TIME_SERIES_DAILY', 'SPY', '&outputsize=compact');
   const series = json['Time Series (Daily)'];
   if (!series) {
-    throw new Error('Alpha Vantage rate limit or invalid response');
+    throw new Error('Invalid daily response');
   }
   const data: DailyData[] = Object.entries(series)
     .slice(0, 5)
@@ -167,5 +155,68 @@ export async function fetchDaily(): Promise<DailyData[]> {
     }))
     .reverse();
   setCache('sp500_daily', data, HIST_TTL);
+  return data;
+}
+
+export type HistoryRange = '1M' | '3M' | '6M' | '1Y' | '3Y' | '5Y';
+
+export async function fetchHistory(range: HistoryRange): Promise<DailyData[]> {
+  const cacheKey = `sp500_history_${range}`;
+  const cached = getCached<DailyData[]>(cacheKey);
+  if (cached) return cached;
+
+  let fn: string;
+  let extra = '&outputsize=compact';
+  let cutoff: Date;
+
+  const now = new Date();
+  switch (range) {
+    case '1M':
+      fn = 'TIME_SERIES_DAILY';
+      cutoff = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      break;
+    case '3M':
+      fn = 'TIME_SERIES_DAILY';
+      cutoff = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+      break;
+    case '6M':
+      fn = 'TIME_SERIES_DAILY';
+      cutoff = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+      break;
+    case '1Y':
+      fn = 'TIME_SERIES_WEEKLY';
+      cutoff = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+      break;
+    case '3Y':
+      fn = 'TIME_SERIES_MONTHLY';
+      cutoff = new Date(now.getFullYear() - 3, now.getMonth(), now.getDate());
+      break;
+    case '5Y':
+      fn = 'TIME_SERIES_MONTHLY';
+      cutoff = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate());
+      break;
+  }
+
+  const json = await fetchMarketData(fn, 'SPY', extra);
+  const seriesKey = fn === 'TIME_SERIES_DAILY'
+    ? 'Time Series (Daily)'
+    : fn === 'TIME_SERIES_WEEKLY'
+      ? 'Weekly Time Series'
+      : 'Monthly Time Series';
+  const series = json[seriesKey];
+
+  if (!series) {
+    throw new Error(`Invalid ${fn} response`);
+  }
+
+  const data: DailyData[] = Object.entries(series)
+    .filter(([date]) => new Date(date) >= cutoff)
+    .map(([date, vals]: [string, unknown]) => ({
+      date,
+      close: parseFloat((vals as Record<string, string>)['4. close']),
+    }))
+    .reverse();
+
+  setCache(cacheKey, data, HIST_TTL);
   return data;
 }

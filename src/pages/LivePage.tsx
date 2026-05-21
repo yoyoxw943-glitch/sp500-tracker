@@ -48,7 +48,7 @@ export default function LivePage() {
       .catch(() => {});
   }, []);
 
-  const { remaining } = useCountdown(60, fetchData);
+  const { remaining } = useCountdown(30, fetchData);
 
   if (loading) return <div className="space-y-5"><LineSkeleton lines={2} /><ChartSkeleton /><LineSkeleton lines={4} /></div>;
   if (error && !quote) return <ErrorState message={error} onRetry={fetchData} />;

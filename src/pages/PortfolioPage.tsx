@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { HISTORICAL_RETURNS } from '../utils/calculations';
+import { fetchUsdCnyRate } from '../services/alphaVantage';
 import type { InvestmentEntry, Goal } from '../types';
 
 const inputClass = "w-full touch-target px-4 py-3 rounded-xl border border-[#BAE6FD] bg-white dark:bg-[#1E3A5F]/40 text-min text-[#0F172A] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0EA5E9] focus:border-transparent placeholder:text-slate-400";
@@ -12,6 +13,17 @@ export default function PortfolioPage() {
   const [goals, setGoals] = useLocalStorage<Goal[]>('investment_goals', []);
   const [showLogForm, setShowLogForm] = useState(false);
   const [showGoalForm, setShowGoalForm] = useState(false);
+  const [currency, setCurrency] = useState<'USD' | 'CNY'>('USD');
+  const [usdCnyRate, setUsdCnyRate] = useState(7.25);
+
+  useEffect(() => {
+    fetchUsdCnyRate().then(setUsdCnyRate);
+  }, []);
+
+  const displayValue = (usd: number) => {
+    if (currency === 'CNY') return `¥${(usd * usdCnyRate).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return formatCurrency(usd);
+  };
 
   const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
   const [entryAmount, setEntryAmount] = useState('1000');
@@ -77,13 +89,21 @@ export default function PortfolioPage() {
 
   return (
     <div className="space-y-5">
-      <h2 className="section-heading">My Portfolio</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="section-heading">My Portfolio</h2>
+        <button
+          onClick={() => setCurrency(c => c === 'USD' ? 'CNY' : 'USD')}
+          className="text-base font-semibold px-3 py-1.5 rounded-lg bg-[#0EA5E9]/10 text-[#0EA5E9] hover:bg-[#0EA5E9]/20 transition-colors touch-target"
+        >
+          {currency === 'USD' ? '$ USD' : `¥ CNY (1 USD = ${usdCnyRate.toFixed(2)})`}
+        </button>
+      </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="card"><p className="text-min text-slate-500 mb-1">Total Invested</p><p className="stat-large">{formatCurrency(totalInvested)}</p></div>
-        <div className="card"><p className="text-min text-slate-500 mb-1">Est. Current Value</p><p className="stat-large value-up">{formatCurrency(estimatedValue)}</p></div>
+        <div className="card"><p className="text-min text-slate-500 mb-1">Total Invested</p><p className="stat-large">{displayValue(totalInvested)}</p></div>
+        <div className="card"><p className="text-min text-slate-500 mb-1">Est. Current Value</p><p className="stat-large value-up">{displayValue(estimatedValue)}</p></div>
         <div className="card"><p className="text-min text-slate-500 mb-1">Contributions</p><p className="stat-large">{entries.length}</p></div>
-        <div className="card"><p className="text-min text-slate-500 mb-1">Avg Cost</p><p className="stat-large">{entries.length ? formatCurrency(avgCost) : '--'}</p></div>
+        <div className="card"><p className="text-min text-slate-500 mb-1">Avg Cost</p><p className="stat-large">{entries.length ? displayValue(avgCost) : '--'}</p></div>
       </div>
 
       <div className="card">
@@ -97,7 +117,7 @@ export default function PortfolioPage() {
         {showLogForm && (
           <div className="mt-4 space-y-3 p-4 bg-[#F0F9FF] dark:bg-[#1E3A5F]/30 rounded-xl">
             <input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className={inputClass} />
-            <input type="number" value={entryAmount} onChange={(e) => setEntryAmount(e.target.value)} placeholder="Amount ($)" min="1" className={inputClass} />
+            <input type="number" value={entryAmount} onChange={(e) => setEntryAmount(e.target.value)} placeholder="Amount" min="1" className={inputClass} />
             <input type="text" value={entryNote} onChange={(e) => setEntryNote(e.target.value)} placeholder="Optional note" className={inputClass} />
             <button onClick={addEntry} className="btn-primary w-full">Save Entry</button>
           </div>
@@ -110,7 +130,7 @@ export default function PortfolioPage() {
             {[...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((e) => (
               <div key={e.id} className="flex items-center justify-between py-3 border-b border-[#BAE6FD] dark:border-[#2563EB]/10 last:border-0">
                 <div>
-                  <p className="text-lg font-semibold">{formatCurrency(e.amount)}</p>
+                  <p className="text-lg font-semibold">{displayValue(e.amount)}</p>
                   <p className="text-min text-slate-500 mt-0.5">{formatDate(e.date)}{e.note ? ` — ${e.note}` : ''}</p>
                 </div>
                 <button onClick={() => setEntries((prev) => prev.filter((x) => x.id !== e.id))} className="text-min text-red-500 hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 touch-target px-2 font-medium">Delete</button>
@@ -126,8 +146,8 @@ export default function PortfolioPage() {
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={chartData}>
               <XAxis dataKey="date" tick={{ fontSize: 13, fill: '#64748B' }} stroke="#BAE6FD" />
-              <YAxis tick={{ fontSize: 13, fill: '#64748B' }} stroke="#BAE6FD" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} width={45} />
-              <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '12px', fontSize: '15px', color: '#0F172A' }} formatter={(v) => [formatCurrency(Number(v)), 'Cumulative']} />
+              <YAxis tick={{ fontSize: 13, fill: '#64748B' }} stroke="#BAE6FD" tickFormatter={(v) => currency === 'CNY' ? `¥${(v / 10000).toFixed(0)}万` : `$${(v / 1000).toFixed(0)}k`} width={55} />
+              <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '12px', fontSize: '15px', color: '#0F172A' }} formatter={(v) => [displayValue(Number(v)), 'Cumulative']} />
               <Line type="monotone" dataKey="total" stroke="#0EA5E9" strokeWidth={2.5} dot={{ r: 3, fill: '#0EA5E9' }} />
             </LineChart>
           </ResponsiveContainer>
@@ -145,7 +165,7 @@ export default function PortfolioPage() {
         {showGoalForm && (
           <div className="mt-4 space-y-3 p-4 bg-[#F0F9FF] dark:bg-[#1E3A5F]/30 rounded-xl">
             <input type="text" value={goalLabel} onChange={(e) => setGoalLabel(e.target.value)} placeholder="Goal label (e.g. Retirement)" className={inputClass} />
-            <input type="number" value={goalAmount} onChange={(e) => setGoalAmount(e.target.value)} placeholder="Target amount ($)" min="1" className={inputClass} />
+            <input type="number" value={goalAmount} onChange={(e) => setGoalAmount(e.target.value)} placeholder="Target amount" min="1" className={inputClass} />
             <input type="number" value={goalYear} onChange={(e) => setGoalYear(parseInt(e.target.value, 10))} placeholder="Target year" min={new Date().getFullYear()} max={2100} className={inputClass} />
             <button onClick={addGoal} className="btn-primary w-full">Save Goal</button>
           </div>
@@ -164,7 +184,7 @@ export default function PortfolioPage() {
                     <button onClick={() => deleteGoal(g.id)} className="text-min text-red-500 hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 touch-target px-2 font-medium">x</button>
                   </div>
                   <div className="flex justify-between text-min text-slate-500 mb-1.5">
-                    <span>{pct}% — {formatCurrency(estimatedValue)} of {formatCurrency(g.targetAmount)}</span>
+                    <span>{pct}% — {displayValue(estimatedValue)} of {displayValue(g.targetAmount)}</span>
                     <span>{g.targetYear}</span>
                   </div>
                   <div className="h-6 bg-[#E0F2FE] dark:bg-[#1E3A5F]/50 rounded-full overflow-hidden">
@@ -178,7 +198,7 @@ export default function PortfolioPage() {
                   <p className="text-min text-slate-500 mt-2">{milestoneMessage(pct)}</p>
                   {monthlyNeeded > 0 && (
                     <p className="text-min text-slate-500 mt-1">
-                      To reach this goal, invest ~{formatCurrency(monthlyNeeded)}/month for {yearsLeft} more years (assuming 10% annual return).
+                      To reach this goal, invest ~{displayValue(monthlyNeeded)}/month for {yearsLeft} more years (assuming 10% annual return).
                     </p>
                   )}
                 </div>

@@ -5,7 +5,7 @@ import type { NewsArticle } from '../types';
 import { CardSkeleton } from '../components/LoadingSkeleton';
 import ErrorState from '../components/ErrorState';
 
-const FILTERS = ['All', 'Macro', 'Earnings', 'Fed', 'ETF'] as const;
+const FILTERS = ['All', 'Macro', 'Earnings', 'Fed', 'Tech', 'ETF', 'Index'] as const;
 
 const categoryStyles: Record<string, string> = {
   Fed: 'bg-purple-500/15 text-purple-600 dark:text-purple-300',
@@ -73,7 +73,10 @@ export default function NewsPage() {
                 <h3 className="text-lg font-semibold flex-1 line-clamp-2 leading-snug group-hover:text-[#0EA5E9] dark:group-hover:text-[#60A5FA] transition-colors">{a.title}</h3>
                 <span className={`shrink-0 text-sm font-semibold px-2.5 py-1 rounded-full ${categoryStyles[a.category] || categoryStyles.Macro}`}>{a.category}</span>
               </div>
-              <div className="flex items-center gap-2 mt-2 text-sm text-slate-500">
+              {a.description && (
+                <p className="text-min text-slate-500 mt-2 line-clamp-3 leading-relaxed">{a.description}</p>
+              )}
+              <div className="flex items-center gap-2 mt-3 text-sm text-slate-500">
                 <span className="font-semibold">{a.source}</span><span>·</span><span>{timeAgo(a.publishedAt)}</span>
               </div>
             </a>
