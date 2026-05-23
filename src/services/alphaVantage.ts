@@ -106,6 +106,61 @@ export async function fetchOverview(): Promise<Sp500Overview> {
   }
 }
 
+export interface VixData {
+  value: number;
+  change: number;
+  changePercent: number;
+}
+
+const MOCK_VIX_BASE = 18.5;
+
+export async function fetchVix(): Promise<VixData> {
+  const cached = getCached<VixData>('vix_quote');
+  if (cached) return cached;
+
+  try {
+    // Use Yahoo Finance chart endpoint (1d, 30m resolution to get multiple points)
+    const json = await fetchMarketData('candle', { symbol: '^VIX', range: '1d', resolution: '30m' });
+    const result = json.chart?.result?.[0];
+    if (result?.timestamp?.length) {
+      const quotes = result.indicators?.quote?.[0];
+      const closes = quotes?.close?.filter((c: number) => c != null) ?? [];
+      const opens = quotes?.open?.filter((o: number) => o != null) ?? [];
+      if (closes.length >= 2) {
+        const prevClose = closes[closes.length - 2];
+        const value = closes[closes.length - 1];
+        const change = value - prevClose;
+        const changePercent = (change / prevClose) * 100;
+        const vix: VixData = { value, change, changePercent };
+        setCache('vix_quote', vix, LIVE_TTL);
+        return vix;
+      }
+      if (closes.length === 1) {
+        const open = opens[0] || closes[0];
+        const value = closes[0];
+        const change = value - open;
+        const changePercent = (change / open) * 100;
+        const vix: VixData = { value, change, changePercent };
+        setCache('vix_quote', vix, LIVE_TTL);
+        return vix;
+      }
+    }
+  } catch { /* fall through to mock */ }
+
+  // Fallback: realistic mock VIX (local dev behind firewall / China block)
+  const prevVix = getCached<VixData>('vix_quote');
+  const base = prevVix?.value ?? MOCK_VIX_BASE;
+  const mockValue = base * (1 + (Math.random() - 0.5) * 0.04);
+  const mockPrev = base * (1 + (Math.random() - 0.5) * 0.02);
+  const vix: VixData = {
+    value: Math.round(mockValue * 100) / 100,
+    change: Math.round((mockValue - mockPrev) * 100) / 100,
+    changePercent: Math.round(((mockValue - mockPrev) / mockPrev) * 100 * 100) / 100,
+  };
+  setCache('vix_quote', vix, 300_000); // 5 min cache for mock
+  return vix;
+}
+
 export async function fetchUsdCnyRate(): Promise<number> {
   const FALLBACK = 7.25;
   const cached = getCached<number>('usd_cny_rate');
@@ -146,19 +201,25 @@ export async function fetchDaily(): Promise<DailyData[]> {
   return data;
 }
 
-export type HistoryRange = '1M' | '3M' | '6M' | '1Y' | '3Y' | '5Y';
+export type HistoryRange = '1W' | '1M' | '3M' | '6M' | '1Y' | '3Y' | '5Y' | '10Y' | '20Y' | '30Y' | 'ALL';
 
 const HISTORY_CONFIG: Record<HistoryRange, { yRange: string; resolution: string }> = {
+  '1W':  { yRange: '5d',  resolution: '1d' },
   '1M':  { yRange: '1mo', resolution: '1d' },
   '3M':  { yRange: '3mo', resolution: '1d' },
   '6M':  { yRange: '6mo', resolution: '1d' },
   '1Y':  { yRange: '1y',  resolution: '1wk' },
   '3Y':  { yRange: '3y',  resolution: '1wk' },
   '5Y':  { yRange: '5y',  resolution: '1mo' },
+  '10Y': { yRange: '10y', resolution: '1mo' },
+  '20Y': { yRange: 'max', resolution: '1mo' },
+  '30Y': { yRange: 'max', resolution: '1mo' },
+  'ALL': { yRange: 'max', resolution: '1mo' },
 };
 
 const MOCK_DAYS: Record<HistoryRange, number> = {
-  '1M': 22, '3M': 66, '6M': 130, '1Y': 52, '3Y': 156, '5Y': 60,
+  '1W': 5, '1M': 22, '3M': 66, '6M': 130, '1Y': 52, '3Y': 156, '5Y': 60,
+  '10Y': 120, '20Y': 240, '30Y': 360, 'ALL': 480,
 };
 
 export async function fetchHistory(range: HistoryRange): Promise<DailyData[]> {
@@ -182,7 +243,9 @@ export async function fetchHistory(range: HistoryRange): Promise<DailyData[]> {
 
   // Fallback: mock data for local dev behind firewall
   const quote = getCached<Sp500Quote>('sp500_quote');
-  const data = generateMockCandle(MOCK_DAYS[range], 1, quote?.price ?? 740);
+  const config = HISTORY_CONFIG[range];
+  const interval = config.resolution === '1d' ? 1 : config.resolution === '1wk' ? 7 : 30;
+  const data = generateMockCandle(MOCK_DAYS[range], interval, quote?.price ?? 740);
   setCache(cacheKey, data, 300_000);
   return data;
 }

@@ -91,19 +91,34 @@ export default function PortfolioPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h2 className="section-heading">My Portfolio</h2>
-        <button
-          onClick={() => setCurrency(c => c === 'USD' ? 'CNY' : 'USD')}
-          className="text-base font-semibold px-3 py-1.5 rounded-lg bg-[#0EA5E9]/10 text-[#0EA5E9] hover:bg-[#0EA5E9]/20 transition-colors touch-target"
-        >
-          {currency === 'USD' ? '$ USD' : `¥ CNY (1 USD = ${usdCnyRate.toFixed(2)})`}
-        </button>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-slate-500 dark:text-slate-400">1 USD ≈ ¥{usdCnyRate.toFixed(2)}</span>
+          <button
+            onClick={() => setCurrency(c => c === 'USD' ? 'CNY' : 'USD')}
+            className="text-base font-semibold px-3 py-1.5 rounded-lg bg-[#0EA5E9]/10 text-[#0EA5E9] hover:bg-[#0EA5E9]/20 transition-colors touch-target"
+          >
+            {currency === 'USD' ? '$ USD' : '¥ CNY'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="card"><p className="text-min text-slate-500 mb-1">Total Invested</p><p className="stat-large">{displayValue(totalInvested)}</p></div>
-        <div className="card"><p className="text-min text-slate-500 mb-1">Est. Current Value</p><p className="stat-large value-up">{displayValue(estimatedValue)}</p></div>
+        <div className="card">
+          <p className="text-min text-slate-500 mb-1">Total Invested</p>
+          <p className="stat-large">{displayValue(totalInvested)}</p>
+          {currency === 'USD' && <p className="text-sm text-slate-400 mt-0.5">≈ ¥{(totalInvested * usdCnyRate).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
+        </div>
+        <div className="card">
+          <p className="text-min text-slate-500 mb-1">Est. Current Value</p>
+          <p className="stat-large value-up">{displayValue(estimatedValue)}</p>
+          {currency === 'USD' && <p className="text-sm text-slate-400 mt-0.5">≈ ¥{(estimatedValue * usdCnyRate).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
+        </div>
         <div className="card"><p className="text-min text-slate-500 mb-1">Contributions</p><p className="stat-large">{entries.length}</p></div>
-        <div className="card"><p className="text-min text-slate-500 mb-1">Avg Cost</p><p className="stat-large">{entries.length ? displayValue(avgCost) : '--'}</p></div>
+        <div className="card">
+          <p className="text-min text-slate-500 mb-1">Avg Cost</p>
+          <p className="stat-large">{entries.length ? displayValue(avgCost) : '--'}</p>
+          {currency === 'USD' && entries.length > 0 && <p className="text-sm text-slate-400 mt-0.5">≈ ¥{(avgCost * usdCnyRate).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>}
+        </div>
       </div>
 
       <div className="card">
@@ -130,7 +145,10 @@ export default function PortfolioPage() {
             {[...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((e) => (
               <div key={e.id} className="flex items-center justify-between py-3 border-b border-[#BAE6FD] dark:border-[#2563EB]/10 last:border-0">
                 <div>
-                  <p className="text-lg font-semibold">{displayValue(e.amount)}</p>
+                  <p className="text-lg font-semibold">
+                    {displayValue(e.amount)}
+                    {currency === 'USD' && <span className="text-sm text-slate-400 ml-1 font-normal">≈ ¥{(e.amount * usdCnyRate).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+                  </p>
                   <p className="text-min text-slate-500 mt-0.5">{formatDate(e.date)}{e.note ? ` — ${e.note}` : ''}</p>
                 </div>
                 <button onClick={() => setEntries((prev) => prev.filter((x) => x.id !== e.id))} className="text-min text-red-500 hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 touch-target px-2 font-medium">Delete</button>
@@ -184,7 +202,7 @@ export default function PortfolioPage() {
                     <button onClick={() => deleteGoal(g.id)} className="text-min text-red-500 hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 touch-target px-2 font-medium">x</button>
                   </div>
                   <div className="flex justify-between text-min text-slate-500 mb-1.5">
-                    <span>{pct}% — {displayValue(estimatedValue)} of {displayValue(g.targetAmount)}</span>
+                    <span>{pct}% — {displayValue(estimatedValue)} of {displayValue(g.targetAmount)}{currency === 'USD' ? ` (≈ ¥${(g.targetAmount * usdCnyRate).toLocaleString('zh-CN', { minimumFractionDigits: 0 })} CNY)` : ''}</span>
                     <span>{g.targetYear}</span>
                   </div>
                   <div className="h-6 bg-[#E0F2FE] dark:bg-[#1E3A5F]/50 rounded-full overflow-hidden">

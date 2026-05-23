@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { fetchQuote, fetchDaily, fetchOverview } from '../services/alphaVantage';
-import type { Sp500Overview } from '../services/alphaVantage';
+import { fetchQuote, fetchDaily, fetchOverview, fetchVix } from '../services/alphaVantage';
+import type { Sp500Overview, VixData } from '../services/alphaVantage';
 import { useCountdown } from '../hooks/useCountdown';
 import { formatCurrency, formatPercent, formatLargeNumber } from '../utils/formatters';
 import type { Sp500Quote, DailyData } from '../types';
@@ -18,6 +18,7 @@ export default function LivePage() {
   const [daily, setDaily] = useState<DailyData[]>([]);
   const [overview, setOverview] = useState<Sp500Overview | null>(null);
   const [fg, setFg] = useState<FearGreedData | null>(null);
+  const [vix, setVix] = useState<VixData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,6 +46,9 @@ export default function LivePage() {
           setFg({ value: data.fear_and_greed.score, classification: data.fear_and_greed.rating });
         }
       })
+      .catch(() => {});
+    fetchVix()
+      .then(setVix)
       .catch(() => {});
   }, []);
 
@@ -173,6 +177,26 @@ export default function LivePage() {
               <p className="stat-mega">{fg.value}</p>
               <p className="text-min text-slate-500 mt-1">{fg.classification}</p>
             </div>
+          </div>
+          {vix && (
+            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-5">
+                <div className="flex-1">
+                  <p className="text-min text-slate-600 dark:text-slate-300">VIX (Volatility Index)</p>
+                  <p className="text-sm text-slate-400 mt-0.5">Often called the "fear index"</p>
+                </div>
+                <div className="text-center shrink-0">
+                  <p className="stat-mega tabular-nums">{vix.value.toFixed(2)}</p>
+                  <p className={`text-min tabular-nums mt-1 ${vix.change >= 0 ? 'value-up' : 'value-down'}`}>
+                    {vix.change >= 0 ? '+' : ''}{vix.change.toFixed(2)} ({vix.changePercent >= 0 ? '+' : ''}{vix.changePercent.toFixed(2)}%)
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 text-sm text-slate-500 dark:text-slate-400 space-y-2">
+            <p><strong className="text-slate-600 dark:text-slate-300">Fear & Greed Index</strong> — CNN's sentiment gauge (0–100). Low values signal fear and potential buying opportunities; high values signal greed and caution.</p>
+            <p><strong className="text-slate-600 dark:text-slate-300">VIX</strong> — The CBOE Volatility Index measures expected S&P 500 volatility over the next 30 days. Below 12 is calm, 12–20 is normal, 20–30 is elevated, and above 30 signals high fear.</p>
           </div>
         </div>
       )}

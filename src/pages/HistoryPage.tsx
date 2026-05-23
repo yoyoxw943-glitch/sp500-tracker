@@ -3,8 +3,11 @@ import { BarChart, Bar, LineChart, Line, Area, XAxis, YAxis, Tooltip, Responsive
 import { HISTORICAL_RETURNS } from '../utils/calculations';
 import { fetchHistory, type HistoryRange } from '../services/alphaVantage';
 
-type Range = '10y' | '20y' | 'all';
-type TimeRange = '1M' | '3M' | '6M' | '1Y' | '3Y' | '5Y';
+type Range = '1W' | '1M' | '3M' | '6M' | '1Y' | '3Y' | '5Y' | '10Y' | '20Y' | '30Y' | 'ALL';
+const ALL_RANGES: Range[] = ['1W', '1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y', '20Y', '30Y', 'ALL'];
+const SHORT_RANGES: Range[] = ['1W', '1M', '3M', '6M'];
+const YEAR_RANGES: Range[] = ['1Y', '3Y'];
+const LONG_RANGES: Range[] = ['5Y', '10Y', '20Y', '30Y', 'ALL'];
 
 const BEAR_MARKETS = [
   { title: '2000 Dot-Com Crash', peak: 'Mar 2000', trough: 'Oct 2002', decline: '-49%', recovery: '49 months', lesson: 'Valuations matter — even great companies can be terrible investments if you overpay.' },
@@ -13,23 +16,32 @@ const BEAR_MARKETS = [
 ];
 
 export default function HistoryPage() {
-  const [range, setRange] = useState<Range>('20y');
-  const [timeRange, setTimeRange] = useState<TimeRange>('1Y');
+  const [range, setRange] = useState<Range>('20Y');
   const [showBear, setShowBear] = useState(false);
   const [chartData, setChartData] = useState<{ date: string; price: number }[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
 
-  const data = useMemo(() => {
+  const annualData = useMemo(() => {
     const now = new Date().getFullYear();
-    if (range === '10y') return HISTORICAL_RETURNS.filter((d) => d.year > now - 10);
-    if (range === '20y') return HISTORICAL_RETURNS.filter((d) => d.year > now - 20);
-    return HISTORICAL_RETURNS;
+    if (range === '5Y') return HISTORICAL_RETURNS.filter((d) => d.year > now - 5);
+    if (range === '10Y') return HISTORICAL_RETURNS.filter((d) => d.year > now - 10);
+    if (range === '20Y') return HISTORICAL_RETURNS.filter((d) => d.year > now - 20);
+    if (range === '30Y') return HISTORICAL_RETURNS.filter((d) => d.year > now - 30);
+    if (range === 'ALL') return HISTORICAL_RETURNS;
+    return HISTORICAL_RETURNS.filter((d) => d.year > now - 3);
   }, [range]);
+
+  const trailingReturn = useMemo(() => {
+    if (chartData.length < 2) return null;
+    const first = chartData[0].price;
+    const last = chartData[chartData.length - 1].price;
+    return ((last - first) / first) * 100;
+  }, [chartData]);
 
   useEffect(() => {
     let cancelled = false;
     setChartLoading(true);
-    fetchHistory(timeRange as HistoryRange)
+    fetchHistory(range as HistoryRange)
       .then((result) => {
         if (!cancelled) {
           setChartData(result.map(d => ({ date: d.date, price: d.close })));
@@ -40,51 +52,84 @@ export default function HistoryPage() {
         if (!cancelled) setChartLoading(false);
       });
     return () => { cancelled = true; };
-  }, [timeRange]);
+  }, [range]);
 
   const positivePct = useMemo(() => {
-    const all = range === 'all' ? HISTORICAL_RETURNS : data;
+    const all = range === 'ALL' ? HISTORICAL_RETURNS : annualData;
     return ((all.filter((d) => d.return > 0).length / all.length) * 100).toFixed(0);
-  }, [range, data]);
+  }, [range, annualData]);
+
+  const isShortRange = SHORT_RANGES.includes(range);
+  const isYearRange = YEAR_RANGES.includes(range);
+  const rangeLabel = range === 'ALL' ? 'All (1928+)' : range === '1W' ? '1 Week' : range === '1M' ? '1 Month' : range === '3M' ? '3 Months' : range === '6M' ? '6 Months' : range === '1Y' ? '1 Year' : range === '3Y' ? '3 Years' : range === '5Y' ? '5 Years' : range === '10Y' ? '10 Years' : range === '20Y' ? '20 Years' : range === '30Y' ? '30 Years' : range;
 
   return (
     <div className="space-y-5">
       <h2 className="section-heading">Historical Returns</h2>
 
-      <div className="flex gap-1 bg-[#0EA5E9]/10 rounded-xl p-1 w-fit">
-        {(['10y', '20y', 'all'] as Range[]).map((r) => (
+      {/* Unified Time Frame Selector */}
+      <div className="flex gap-1 bg-[#0EA5E9]/10 rounded-xl p-1 w-fit flex-wrap">
+        {ALL_RANGES.map((r) => (
           <button
             key={r}
             onClick={() => setRange(r)}
-            className={`touch-target px-4 py-2 rounded-lg text-base font-semibold transition-all duration-200 ${
+            className={`touch-target px-3 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
               range === r ? 'bg-[#0EA5E9] text-white shadow-lg' : 'text-slate-500 hover:text-[#0F172A] dark:text-slate-400 dark:hover:text-slate-200'
             }`}
           >
-            {r === '10y' ? '10 Years' : r === '20y' ? '20 Years' : 'All (1928+)'}
+            {r}
           </button>
         ))}
       </div>
 
-      {/* S&P 500 Price History Chart with Time Range Buttons */}
-      <div className="card">
-        <h3 className="text-xl font-semibold mb-3 text-[#0369A1] dark:text-[#F8FAFC]">S&P 500 Price History</h3>
-
-        {/* Time Range Filter Buttons */}
-        <div className="flex gap-1 bg-[#0EA5E9]/8 rounded-xl p-1 w-fit mb-4">
-          {(['1M', '3M', '6M', '1Y', '3Y', '5Y'] as TimeRange[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTimeRange(t)}
-              className={`touch-target px-3 py-1.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
-                timeRange === t ? 'bg-[#0EA5E9] text-white shadow-lg' : 'text-slate-500 hover:text-[#0F172A] dark:text-slate-400 dark:hover:text-slate-200'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
+      {/* Returns Display */}
+      {isShortRange ? (
+        <div className="card">
+          <h3 className="text-xl font-semibold mb-3 text-[#0369A1] dark:text-[#F8FAFC]">Trailing Return — {rangeLabel}</h3>
+          {chartLoading ? (
+            <div className="text-center py-10 text-slate-400">Loading...</div>
+          ) : trailingReturn != null ? (
+            <div className="text-center py-6">
+              <p className={`stat-mega ${trailingReturn >= 0 ? 'value-up' : 'value-down'}`}>
+                {trailingReturn >= 0 ? '+' : ''}{trailingReturn.toFixed(2)}%
+              </p>
+              <p className="text-min text-slate-500 mt-2">
+                {chartData.length > 0 && (
+                  <>From {chartData[0].date} to {chartData[chartData.length - 1].date}</>
+                )}
+              </p>
+            </div>
+          ) : (
+            <div className="text-center py-10 text-slate-400">No data available</div>
+          )}
         </div>
+      ) : (
+        <div className="card grid-lines">
+          <h3 className="text-xl font-semibold mb-3 text-[#0369A1] dark:text-[#F8FAFC]">Annual Returns — {rangeLabel}</h3>
+          {annualData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={340}>
+              <BarChart data={annualData}>
+                <XAxis dataKey="year" tick={{ fontSize: 13, fill: '#64748B' }} stroke="#BAE6FD" interval={range === 'ALL' ? 9 : range === '30Y' ? 2 : 0} />
+                <YAxis tick={{ fontSize: 14, fill: '#64748B' }} stroke="#BAE6FD" tickFormatter={(v) => `${v}%`} />
+                <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '12px', fontSize: '15px', color: '#0F172A' }} formatter={(v) => [`${Number(v).toFixed(2)}%`, 'Return']} labelFormatter={(l) => `Year: ${l}`} />
+                <Bar dataKey="return" radius={[4, 4, 0, 0]}>
+                  {annualData.map((entry, i) => (
+                    <Cell key={i} fill={entry.return >= 0 ? '#16A34A' : '#DC2626'} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="text-center py-10 text-slate-400">No data for this range</div>
+          )}
+        </div>
+      )}
 
-        <div aria-label={`S&P 500 price chart for ${timeRange} range`}>
+      {/* S&P 500 Price History Chart */}
+      <div className="card">
+        <h3 className="text-xl font-semibold mb-3 text-[#0369A1] dark:text-[#F8FAFC]">S&P 500 Price History — {rangeLabel}</h3>
+
+        <div aria-label={`S&P 500 price chart for ${range} range`}>
           {chartLoading && <div className="text-center py-10 text-slate-400">Loading market data...</div>}
           {!chartLoading && chartData.length > 0 && (
           <ResponsiveContainer width="100%" height={300}>
@@ -97,9 +142,9 @@ export default function HistoryPage() {
               </defs>
               <XAxis dataKey="date" tick={{ fontSize: 13, fill: '#64748B' }} stroke="#BAE6FD" tickFormatter={(d) => {
                 const date = new Date(d);
-                if (timeRange === '1M' || timeRange === '3M' || timeRange === '6M') return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                if (range === '1W' || range === '1M' || range === '3M' || range === '6M') return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-              }} interval={timeRange === '5Y' ? 11 : timeRange === '3Y' ? 5 : timeRange === '6M' || timeRange === '1Y' ? 9 : 'preserveStartEnd'} />
+              }} interval={range === '30Y' || range === 'ALL' ? 23 : range === '20Y' ? 17 : range === '10Y' ? 11 : range === '5Y' ? 5 : range === '3Y' ? 5 : range === '6M' || range === '1Y' ? 9 : 'preserveStartEnd'} />
               <YAxis tick={{ fontSize: 14, fill: '#64748B' }} stroke="#BAE6FD" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} width={55} domain={['auto', 'auto']} />
               <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '12px', fontSize: '15px', color: '#0F172A' }}
                 formatter={(v) => [formatCurrency(Number(v)), 'Price']}
@@ -111,23 +156,6 @@ export default function HistoryPage() {
           </ResponsiveContainer>
           )}
         </div>
-      </div>
-
-      {/* Annual Returns Bar Chart */}
-      <div className="card grid-lines" aria-label={`S&P 500 annual returns bar chart showing ${range === '10y' ? 'last 10 years' : range === '20y' ? 'last 20 years' : 'history since 1928'}`}>
-        <h3 className="text-xl font-semibold mb-3 text-[#0369A1] dark:text-[#F8FAFC]">Annual Returns</h3>
-        <ResponsiveContainer width="100%" height={340}>
-          <BarChart data={data}>
-            <XAxis dataKey="year" tick={{ fontSize: 13, fill: '#64748B' }} stroke="#BAE6FD" interval={range === 'all' ? 9 : 0} />
-            <YAxis tick={{ fontSize: 14, fill: '#64748B' }} stroke="#BAE6FD" tickFormatter={(v) => `${v}%`} />
-            <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '12px', fontSize: '15px', color: '#0F172A' }} formatter={(v) => [`${Number(v).toFixed(2)}%`, 'Return']} labelFormatter={(l) => `Year: ${l}`} />
-            <Bar dataKey="return" radius={[4, 4, 0, 0]}>
-              {data.map((entry, i) => (
-                <Cell key={i} fill={entry.return >= 0 ? '#16A34A' : '#DC2626'} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
       </div>
 
       <div className="card">
