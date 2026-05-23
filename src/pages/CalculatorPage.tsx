@@ -3,9 +3,16 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { calculateProjection } from '../utils/calculations';
 import { formatLargeNumber } from '../utils/formatters';
 import { fetchUsdCnyRate } from '../services/alphaVantage';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import type { CalculatorInputs } from '../types';
 
 const DEFAULTS: CalculatorInputs = { initialInvestment: 10000, monthlyContribution: 500, years: 20, annualReturn: 10 };
+
+interface SavedScenario {
+  id: string;
+  name: string;
+  inputs: CalculatorInputs;
+}
 
 type Currency = 'USD' | 'CNY';
 
@@ -46,6 +53,9 @@ export default function CalculatorPage() {
   const [inputs, setInputs] = useState<CalculatorInputs>(DEFAULTS);
   const [currency, setCurrency] = useState<Currency>('USD');
   const [usdCnyRate, setUsdCnyRate] = useState(7.25);
+  const [scenarios, setScenarios] = useLocalStorage<SavedScenario[]>('calc_scenarios', []);
+  const [scenarioName, setScenarioName] = useState('');
+  const [showSaved, setShowSaved] = useState(false);
 
   useEffect(() => {
     fetchUsdCnyRate().then(setUsdCnyRate).catch(() => {});
@@ -56,6 +66,18 @@ export default function CalculatorPage() {
   const update = useCallback((field: keyof CalculatorInputs, value: number) => {
     setInputs((prev) => ({ ...prev, [field]: value }));
   }, []);
+
+  const saveScenario = () => {
+    const name = scenarioName.trim() || `Scenario ${scenarios.length + 1}`;
+    setScenarios((prev) => [
+      ...prev,
+      { id: Date.now().toString(), name, inputs: { ...inputs } },
+    ]);
+    setScenarioName('');
+  };
+
+  const loadScenario = (s: SavedScenario) => setInputs({ ...s.inputs });
+  const deleteScenario = (id: string) => setScenarios((prev) => prev.filter((s) => s.id !== id));
 
   return (
     <div className="space-y-5">
@@ -93,7 +115,59 @@ export default function CalculatorPage() {
             onChange={(v) => update(cfg.field, v)}
           />
         ))}
+        <div className="border-t border-[#BAE6FD] dark:border-[#2563EB]/15 pt-4">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={scenarioName}
+              onChange={(e) => setScenarioName(e.target.value)}
+              placeholder="Scenario name (optional)"
+              className="flex-1 touch-target px-4 py-2.5 rounded-lg border border-[#BAE6FD] bg-white dark:bg-[#1E3A5F]/40 text-sm text-[#0F172A] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0EA5E9] focus:border-transparent placeholder:text-slate-400"
+              onKeyDown={(e) => e.key === 'Enter' && saveScenario()}
+            />
+            <button onClick={saveScenario} className="touch-target px-4 py-2.5 rounded-lg bg-[#0EA5E9] text-white font-semibold text-sm hover:bg-[#0284C7] transition-colors">
+              Save
+            </button>
+            {scenarios.length > 0 && (
+              <button
+                onClick={() => setShowSaved(!showSaved)}
+                className="touch-target px-4 py-2.5 rounded-lg bg-[#0EA5E9]/10 text-[#0EA5E9] font-semibold text-sm hover:bg-[#0EA5E9]/20 transition-colors"
+              >
+                {showSaved ? 'Hide' : `Saved (${scenarios.length})`}
+              </button>
+            )}
+          </div>
+        </div>
       </div>
+
+      {showSaved && scenarios.length > 0 && (
+        <div className="card">
+          <h3 className="text-xl font-semibold mb-3 text-[#0369A1] dark:text-[#F8FAFC]">Saved Scenarios</h3>
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {scenarios.map((s) => (
+              <div key={s.id} className="flex items-center justify-between py-2 border-b border-[#BAE6FD] dark:border-[#2563EB]/10 last:border-0">
+                <div className="flex-1 min-w-0">
+                  <p className="text-base font-semibold truncate">{s.name}</p>
+                  <p className="text-sm text-slate-500">
+                    {currency === 'CNY'
+                      ? `¥${(s.inputs.initialInvestment * usdCnyRate).toLocaleString('en-US', { maximumFractionDigits: 0 })} + ¥${(s.inputs.monthlyContribution * usdCnyRate).toLocaleString('en-US', { maximumFractionDigits: 0 })}/mo · ${s.inputs.years}y · ${s.inputs.annualReturn}%`
+                      : `$${s.inputs.initialInvestment.toLocaleString()} + $${s.inputs.monthlyContribution.toLocaleString()}/mo · ${s.inputs.years}y · ${s.inputs.annualReturn}%`
+                    }
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0 ml-3">
+                  <button onClick={() => loadScenario(s)} className="touch-target px-3 py-1.5 rounded-lg text-sm font-semibold bg-[#0EA5E9]/10 text-[#0EA5E9] hover:bg-[#0EA5E9]/20 transition-colors">
+                    Load
+                  </button>
+                  <button onClick={() => deleteScenario(s.id)} className="touch-target px-3 py-1.5 rounded-lg text-sm font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
+                    Del
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <h3 className="text-xl font-semibold mb-4 text-[#0369A1] dark:text-[#F8FAFC]">Projection Results</h3>
