@@ -239,7 +239,7 @@ function NumberField({ config, value, currency, rate, onChange }: {
     let num = parseFloat(cleaned);
     if (isNaN(num) || num < min) return min;
     if (num > max) return max;
-    return Math.round(num / step) * step;
+    return num;
   }
 
   const handleTextChange = (raw: string) => {
