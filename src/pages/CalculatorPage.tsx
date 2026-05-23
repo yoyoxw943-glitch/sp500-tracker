@@ -44,7 +44,7 @@ interface FieldConfig {
 
 const FIELDS: FieldConfig[] = [
   { label: 'Initial Investment', field: 'initialInvestment', min: 0, max: 100000, step: 1000, isCurrency: true, placeholder: 'e.g. 10,000' },
-  { label: 'Monthly Contribution', field: 'monthlyContribution', min: 100, max: 10000, step: 100, isCurrency: true, placeholder: 'e.g. 500' },
+  { label: 'Monthly Contribution', field: 'monthlyContribution', min: 0, max: 10000, step: 100, isCurrency: true, placeholder: 'e.g. 500' },
   { label: 'Investment Period', field: 'years', min: 1, max: 40, step: 1, placeholder: 'e.g. 20', suffix: ' yrs' },
   { label: 'Expected Annual Return', field: 'annualReturn', min: 4, max: 15, step: 0.5, placeholder: 'e.g. 10', suffix: '%' },
 ];
@@ -235,11 +235,18 @@ function NumberField({ config, value, currency, rate, onChange }: {
 
   function parseDisplay(raw: string): number {
     let cleaned = raw.replace(/[^0-9.]/g, '');
-    if (isCurrency && currency === 'CNY') cleaned = (parseFloat(cleaned) / rate).toFixed(2);
-    let num = parseFloat(cleaned);
-    if (isNaN(num) || num < min) return min;
-    if (num > max) return max;
-    return num;
+    const rawNum = parseFloat(cleaned);
+    if (isNaN(rawNum)) return min;
+
+    if (isCurrency && currency === 'CNY') {
+      // Clamp in CNY space before converting to USD
+      const cnyMin = min * rate;
+      const cnyMax = max * rate;
+      const clampedCny = Math.max(cnyMin, Math.min(cnyMax, rawNum));
+      return parseFloat((clampedCny / rate).toFixed(2));
+    }
+
+    return Math.max(min, Math.min(max, rawNum));
   }
 
   const handleTextChange = (raw: string) => {
