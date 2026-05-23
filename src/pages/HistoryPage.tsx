@@ -23,12 +23,14 @@ export default function HistoryPage() {
 
   const annualData = useMemo(() => {
     const now = new Date().getFullYear();
-    if (range === '5Y') return HISTORICAL_RETURNS.filter((d) => d.year > now - 5);
-    if (range === '10Y') return HISTORICAL_RETURNS.filter((d) => d.year > now - 10);
-    if (range === '20Y') return HISTORICAL_RETURNS.filter((d) => d.year > now - 20);
-    if (range === '30Y') return HISTORICAL_RETURNS.filter((d) => d.year > now - 30);
+    if (range === '1Y') return HISTORICAL_RETURNS.filter((d) => d.year >= now - 1);
+    if (range === '3Y') return HISTORICAL_RETURNS.filter((d) => d.year >= now - 3);
+    if (range === '5Y') return HISTORICAL_RETURNS.filter((d) => d.year >= now - 5);
+    if (range === '10Y') return HISTORICAL_RETURNS.filter((d) => d.year >= now - 10);
+    if (range === '20Y') return HISTORICAL_RETURNS.filter((d) => d.year >= now - 20);
+    if (range === '30Y') return HISTORICAL_RETURNS.filter((d) => d.year >= now - 30);
     if (range === 'ALL') return HISTORICAL_RETURNS;
-    return HISTORICAL_RETURNS.filter((d) => d.year > now - 3);
+    return HISTORICAL_RETURNS.filter((d) => d.year >= now - 3);
   }, [range]);
 
   const trailingReturn = useMemo(() => {

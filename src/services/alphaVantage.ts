@@ -223,14 +223,14 @@ const MOCK_DAYS: Record<HistoryRange, number> = {
 };
 
 export async function fetchHistory(range: HistoryRange): Promise<DailyData[]> {
-  const cacheKey = `sp500_history_${range}`;
+  const cacheKey = `gspc_history_${range}`;
   const cached = getCached<DailyData[]>(cacheKey);
   if (cached) return cached;
 
   try {
     const config = HISTORY_CONFIG[range];
     const json = await fetchMarketData('candle', {
-      symbol: 'SPY',
+      symbol: '^GSPC',
       range: config.yRange,
       resolution: config.resolution,
     });
