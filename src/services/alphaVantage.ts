@@ -46,7 +46,7 @@ export async function fetchQuote(): Promise<Sp500Quote> {
     change: json.c - json.pc,
     changePercent: ((json.c - json.pc) / json.pc) * 100,
     open: json.o,
-    volume: 0,
+    volume: json.volume ?? 0,
     high: json.h,
     low: json.l,
     previousClose: json.pc,

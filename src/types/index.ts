@@ -41,6 +41,7 @@ export interface InvestmentEntry {
   id: string;
   date: string;
   amount: number;
+  currency: 'USD' | 'CNY';
   note: string;
 }
 

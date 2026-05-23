@@ -27,12 +27,15 @@ export default function PortfolioPage() {
 
   const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
   const [entryAmount, setEntryAmount] = useState('1000');
+  const [entryCurrency, setEntryCurrency] = useState<'USD' | 'CNY'>('USD');
   const [entryNote, setEntryNote] = useState('');
   const [goalLabel, setGoalLabel] = useState('');
   const [goalAmount, setGoalAmount] = useState('100000');
   const [goalYear, setGoalYear] = useState(new Date().getFullYear() + 10);
 
-  const totalInvested = useMemo(() => entries.reduce((sum, e) => sum + e.amount, 0), [entries]);
+  const toUsd = (amount: number, curr: string) => curr === 'CNY' ? amount / usdCnyRate : amount;
+
+  const totalInvested = useMemo(() => entries.reduce((sum, e) => sum + toUsd(e.amount, e.currency || 'USD'), 0), [entries, usdCnyRate]);
   const avgCost = useMemo(() => entries.length ? totalInvested / entries.length : 0, [entries, totalInvested]);
 
   const estimatedValue = useMemo(() => {
@@ -53,14 +56,14 @@ export default function PortfolioPage() {
   const chartData = useMemo(() => {
     const sorted = [...entries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     let running = 0;
-    return sorted.map((e) => { running += e.amount; return { date: e.date, total: running }; });
-  }, [entries]);
+    return sorted.map((e) => { running += toUsd(e.amount, e.currency || 'USD'); return { date: e.date, total: running }; });
+  }, [entries, usdCnyRate]);
 
   const addEntry = () => {
     const amount = parseFloat(entryAmount);
     if (!amount || amount <= 0) return;
-    setEntries((prev) => [...prev, { id: Date.now().toString(), date: entryDate, amount, note: entryNote }]);
-    setEntryAmount('1000'); setEntryNote(''); setShowLogForm(false);
+    setEntries((prev) => [...prev, { id: Date.now().toString(), date: entryDate, amount, currency: entryCurrency, note: entryNote }]);
+    setEntryAmount('1000'); setEntryCurrency('USD'); setEntryNote(''); setShowLogForm(false);
   };
 
   const addGoal = () => {
@@ -132,7 +135,21 @@ export default function PortfolioPage() {
         {showLogForm && (
           <div className="mt-4 space-y-3 p-4 bg-[#F0F9FF] dark:bg-[#1E3A5F]/30 rounded-xl">
             <input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className={inputClass} />
-            <input type="number" value={entryAmount} onChange={(e) => setEntryAmount(e.target.value)} placeholder="Amount" min="1" className={inputClass} />
+            <div className="flex gap-3">
+              <input type="number" value={entryAmount} onChange={(e) => setEntryAmount(e.target.value)} placeholder="Amount" min="1" className={`${inputClass} flex-1`} />
+              <div className="flex rounded-xl border border-[#BAE6FD] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setEntryCurrency('USD')}
+                  className={`px-4 py-3 text-min font-semibold transition-colors ${entryCurrency === 'USD' ? 'bg-[#0EA5E9] text-white' : 'bg-white dark:bg-[#1E3A5F]/40 text-slate-500'}`}
+                >$ USD</button>
+                <button
+                  type="button"
+                  onClick={() => setEntryCurrency('CNY')}
+                  className={`px-4 py-3 text-min font-semibold transition-colors ${entryCurrency === 'CNY' ? 'bg-[#0EA5E9] text-white' : 'bg-white dark:bg-[#1E3A5F]/40 text-slate-500'}`}
+                >¥ CNY</button>
+              </div>
+            </div>
             <input type="text" value={entryNote} onChange={(e) => setEntryNote(e.target.value)} placeholder="Optional note" className={inputClass} />
             <button onClick={addEntry} className="btn-primary w-full">Save Entry</button>
           </div>
@@ -142,18 +159,24 @@ export default function PortfolioPage() {
           <p className="text-min text-slate-400 mt-4 text-center py-6">No investments logged yet. Add your first entry!</p>
         ) : (
           <div className="mt-4 space-y-1 max-h-72 overflow-y-auto">
-            {[...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((e) => (
+            {[...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((e) => {
+              const entryCurr = e.currency || 'USD';
+              const isCny = entryCurr === 'CNY';
+              const amountUsd = toUsd(e.amount, entryCurr);
+              return (
               <div key={e.id} className="flex items-center justify-between py-3 border-b border-[#BAE6FD] dark:border-[#2563EB]/10 last:border-0">
                 <div>
                   <p className="text-lg font-semibold">
-                    {displayValue(e.amount)}
-                    {currency === 'USD' && <span className="text-sm text-slate-400 ml-1 font-normal">≈ ¥{(e.amount * usdCnyRate).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+                    {isCny ? `¥${e.amount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : formatCurrency(e.amount)}
+                    {isCny && <span className="text-sm text-slate-400 ml-1 font-normal">≈ {formatCurrency(amountUsd)}</span>}
+                    {!isCny && <span className="text-sm text-slate-400 ml-1 font-normal">≈ ¥{(amountUsd * usdCnyRate).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
                   </p>
                   <p className="text-min text-slate-500 mt-0.5">{formatDate(e.date)}{e.note ? ` — ${e.note}` : ''}</p>
                 </div>
                 <button onClick={() => setEntries((prev) => prev.filter((x) => x.id !== e.id))} className="text-min text-red-500 hover:text-red-400 dark:text-red-400 dark:hover:text-red-300 touch-target px-2 font-medium">Delete</button>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

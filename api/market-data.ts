@@ -20,9 +20,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     switch (fn) {
-      case 'quote':
-        upstream = `${BASE}/quote?symbol=${symbol}&token=${API_KEY}`;
-        break;
+      case 'quote': {
+        // Fetch quote + daily candle (for volume) in parallel
+        const [quoteRes, candleRes] = await Promise.all([
+          fetch(`${BASE}/quote?symbol=${symbol}&token=${API_KEY}`),
+          fetch(`${BASE}/stock/candle?symbol=${symbol}&resolution=D&count=1&token=${API_KEY}`),
+        ]);
+        const quoteData = await quoteRes.json();
+        const candleData = await candleRes.json().catch(() => ({}));
+        const volume = candleData.v?.[0] ?? 0;
+        return res.status(200).json({ ...quoteData, volume });
+      }
       case 'overview': {
         const [profileRes, metricsRes] = await Promise.all([
           fetch(`${BASE}/stock/profile2?symbol=${symbol}&token=${API_KEY}`),

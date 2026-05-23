@@ -100,9 +100,20 @@ const server = createServer(async (req, res) => {
 
   try {
     switch (fn) {
-      case 'quote':
-        upstream = `${FINNHUB_BASE}/quote?symbol=${symbol}&token=${KEYS.finnhub}`;
-        break;
+      case 'quote': {
+        // Fetch quote + daily candle (for volume) in parallel
+        const [quoteRes, candleRes] = await Promise.all([
+          fetch(`${FINNHUB_BASE}/quote?symbol=${symbol}&token=${KEYS.finnhub}`),
+          fetch(`${FINNHUB_BASE}/stock/candle?symbol=${symbol}&resolution=D&count=1&token=${KEYS.finnhub}`),
+        ]);
+        const quoteData = await quoteRes.json();
+        const candleData = await candleRes.json().catch(() => ({}));
+        const volume = candleData.v?.[0] ?? 0;
+        res.setHeader('Content-Type', 'application/json');
+        res.writeHead(200);
+        res.end(JSON.stringify({ ...quoteData, volume }));
+        return;
+      }
       case 'overview': {
         const [profileRes, metricsRes] = await Promise.all([
           fetch(`${FINNHUB_BASE}/stock/profile2?symbol=${symbol}&token=${KEYS.finnhub}`),
