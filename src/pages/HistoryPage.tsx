@@ -107,7 +107,8 @@ export default function HistoryPage() {
         </div>
       ) : (
         <div className="card grid-lines">
-          <h3 className="text-xl font-semibold mb-3 text-[#0369A1] dark:text-[#F8FAFC]">Annual Returns — {rangeLabel}</h3>
+          <h3 className="text-xl font-semibold mb-1 text-[#0369A1] dark:text-[#F8FAFC]">Annual Returns — {rangeLabel}</h3>
+          <p className="text-sm text-slate-400 mb-3">S&P 500 index returns (SPY tracks this index)</p>
           {annualData.length > 0 ? (
             <ResponsiveContainer width="100%" height={340}>
               <BarChart data={annualData}>
@@ -129,7 +130,7 @@ export default function HistoryPage() {
 
       {/* S&P 500 Price History Chart */}
       <div className="card">
-        <h3 className="text-xl font-semibold mb-3 text-[#0369A1] dark:text-[#F8FAFC]">S&P 500 Price History — {rangeLabel}</h3>
+        <h3 className="text-xl font-semibold mb-3 text-[#0369A1] dark:text-[#F8FAFC]">SPY Price History — {rangeLabel}</h3>
 
         <div aria-label={`S&P 500 price chart for ${range} range`}>
           {chartLoading && <div className="text-center py-10 text-slate-400">Loading market data...</div>}
