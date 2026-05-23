@@ -60,9 +60,10 @@ export default function LivePage() {
   const changeColor = quote && quote.change >= 0 ? 'value-up' : 'value-down';
   const metrics = quote ? [
     { label: 'Open', value: formatCurrency(quote.open) },
-    { label: 'Volume', value: formatLargeNumber(quote.volume) },
+    { label: 'Prev Close', value: formatCurrency(quote.previousClose) },
     { label: 'Day High', value: formatCurrency(quote.high) },
     { label: 'Day Low', value: formatCurrency(quote.low) },
+    { label: 'Volume', value: formatLargeNumber(quote.volume), wide: true },
   ] : [];
 
   const now = new Date();
@@ -115,9 +116,9 @@ export default function LivePage() {
       {/* Key Metrics */}
       <div className="grid grid-cols-2 gap-3">
         {metrics.map((m) => (
-          <div key={m.label} className="card">
+          <div key={m.label} className={`card ${(m as any).wide ? 'col-span-2' : ''}`}>
             <p className="text-min text-slate-500 mb-1">{m.label}</p>
-            <p className="data-label tabular-nums">{m.value}</p>
+            <p className={`${(m as any).wide ? 'stat-large' : 'data-label'} tabular-nums`}>{m.value}</p>
           </div>
         ))}
       </div>
