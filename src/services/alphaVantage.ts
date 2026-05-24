@@ -224,12 +224,15 @@ const MOCK_DAYS: Record<HistoryRange, number> = {
 };
 
 export async function fetchHistory(range: HistoryRange): Promise<DailyData[]> {
-  const cacheKey = `spy_history_v2_${range}`;
+  const cacheKey = `spy_history_v3_${range}`;
   const cached = getCached<DailyData[]>(cacheKey);
   if (cached) return cached;
 
   const now = new Date().getFullYear();
-  const targetStartYear = range === 'ALL' ? 1928 : range === '30Y' ? now - 30 : 0;
+  const targetStartYear =
+    range === 'ALL' ? 1928 :
+    range === '30Y' ? now - 30 :
+    range === '20Y' ? now - 20 : 0;
 
   try {
     const config = HISTORY_CONFIG[range];
@@ -241,13 +244,15 @@ export async function fetchHistory(range: HistoryRange): Promise<DailyData[]> {
     let parsed = parseYahooCandle(json);
     if (parsed && parsed.length > 0) {
       // Merge with hardcoded historical data for ranges that extend before SPY's 1993 inception
-      if (targetStartYear > 0 && parsed.length > 0) {
+      if (targetStartYear > 0) {
         const earliestLiveYear = new Date(parsed[0].date).getFullYear();
         if (earliestLiveYear > targetStartYear) {
           const histMonthly = getHistoricalMonthly(earliestLiveYear - 1);
           const filtered = histMonthly.filter((d) => new Date(d.date).getFullYear() >= targetStartYear);
           parsed = [...filtered, ...parsed];
         }
+        // Trim to requested range (needed for 20Y/30Y since API only supports max/10y)
+        parsed = parsed.filter((d) => new Date(d.date).getFullYear() >= targetStartYear);
       }
       setCache(cacheKey, parsed, HIST_TTL);
       return parsed;
