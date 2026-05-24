@@ -56,12 +56,15 @@ export default function HistoryPage() {
     return () => { cancelled = true; };
   }, [range]);
 
-  const positivePct = useMemo(() => {
-    return ((HISTORICAL_RETURNS.filter((d) => d.return > 0).length / HISTORICAL_RETURNS.length) * 100).toFixed(0);
-  }, []);
-
   const isShortRange = SHORT_RANGES.includes(range);
   const isYearRange = YEAR_RANGES.includes(range);
+
+  const positivePct = useMemo(() => {
+    // For short/year ranges there are too few data points — use full history
+    const dataset = isShortRange || isYearRange ? HISTORICAL_RETURNS : annualData;
+    return ((dataset.filter((d) => d.return > 0).length / dataset.length) * 100).toFixed(0);
+  }, [range, annualData, isShortRange, isYearRange]);
+
   const rangeLabel = range === 'ALL' ? 'All (1928+)' : range === '1W' ? '1 Week' : range === '1M' ? '1 Month' : range === '3M' ? '3 Months' : range === '6M' ? '6 Months' : range === '1Y' ? '1 Year' : range === '3Y' ? '3 Years' : range === '5Y' ? '5 Years' : range === '10Y' ? '10 Years' : range === '20Y' ? '20 Years' : range === '30Y' ? '30 Years' : range;
 
   return (
