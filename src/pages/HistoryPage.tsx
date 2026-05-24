@@ -57,9 +57,8 @@ export default function HistoryPage() {
   }, [range]);
 
   const positivePct = useMemo(() => {
-    const all = range === 'ALL' ? HISTORICAL_RETURNS : annualData;
-    return ((all.filter((d) => d.return > 0).length / all.length) * 100).toFixed(0);
-  }, [range, annualData]);
+    return ((HISTORICAL_RETURNS.filter((d) => d.return > 0).length / HISTORICAL_RETURNS.length) * 100).toFixed(0);
+  }, []);
 
   const isShortRange = SHORT_RANGES.includes(range);
   const isYearRange = YEAR_RANGES.includes(range);

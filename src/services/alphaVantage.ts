@@ -1,4 +1,5 @@
 import { getCached, setCache } from '../utils/cache';
+import { getHistoricalMonthly } from '../utils/calculations';
 import type { Sp500Quote, DailyData } from '../types';
 
 const LIVE_TTL = 15_000;
@@ -223,9 +224,12 @@ const MOCK_DAYS: Record<HistoryRange, number> = {
 };
 
 export async function fetchHistory(range: HistoryRange): Promise<DailyData[]> {
-  const cacheKey = `spy_history_${range}`;
+  const cacheKey = `spy_history_v2_${range}`;
   const cached = getCached<DailyData[]>(cacheKey);
   if (cached) return cached;
+
+  const now = new Date().getFullYear();
+  const targetStartYear = range === 'ALL' ? 1928 : range === '30Y' ? now - 30 : 0;
 
   try {
     const config = HISTORY_CONFIG[range];
@@ -234,14 +238,33 @@ export async function fetchHistory(range: HistoryRange): Promise<DailyData[]> {
       range: config.yRange,
       resolution: config.resolution,
     });
-    const parsed = parseYahooCandle(json);
+    let parsed = parseYahooCandle(json);
     if (parsed && parsed.length > 0) {
+      // Merge with hardcoded historical data for ranges that extend before SPY's 1993 inception
+      if (targetStartYear > 0 && parsed.length > 0) {
+        const earliestLiveYear = new Date(parsed[0].date).getFullYear();
+        if (earliestLiveYear > targetStartYear) {
+          const histMonthly = getHistoricalMonthly(earliestLiveYear - 1);
+          const filtered = histMonthly.filter((d) => new Date(d.date).getFullYear() >= targetStartYear);
+          parsed = [...filtered, ...parsed];
+        }
+      }
       setCache(cacheKey, parsed, HIST_TTL);
       return parsed;
     }
-  } catch { /* fall through to mock */ }
+  } catch { /* fall through to fallback */ }
 
-  // Fallback: mock data for local dev behind firewall
+  // Fallback: use hardcoded historical data when possible
+  if (targetStartYear > 0) {
+    const histMonthly = getHistoricalMonthly();
+    const filtered = histMonthly.filter((d) => new Date(d.date).getFullYear() >= targetStartYear);
+    if (filtered.length > 0) {
+      setCache(cacheKey, filtered, HIST_TTL);
+      return filtered;
+    }
+  }
+
+  // Last resort: mock data for local dev behind firewall
   const quote = getCached<Sp500Quote>('sp500_quote');
   const config = HISTORY_CONFIG[range];
   const interval = config.resolution === '1d' ? 1 : config.resolution === '1wk' ? 7 : 30;
