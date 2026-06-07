@@ -62,10 +62,19 @@ export default function CalculatorPage() {
     fetchUsdCnyRate().then(setUsdCnyRate).catch(() => {});
   }, []);
 
-  const projection = calculateProjection(inputs);
+  const projection = (() => {
+    const result = calculateProjection(inputs);
+    console.log('[CALC] projection computed, annualReturn:', inputs.annualReturn, 'finalValue:', result.finalValue);
+    return result;
+  })();
 
   const update = useCallback((field: keyof CalculatorInputs, value: number) => {
-    setInputs((prev) => ({ ...prev, [field]: value }));
+    console.log('[CALC] update:', field, '→', value);
+    setInputs((prev) => {
+      const next = { ...prev, [field]: value };
+      console.log('[CALC] inputs updated, new annualReturn:', next.annualReturn);
+      return next;
+    });
   }, []);
 
   const saveScenario = () => {
@@ -239,8 +248,10 @@ function NumberField({ config, value, currency, rate, calculateTrigger, onChange
 
   // Commit text value when Calculate button is clicked
   useEffect(() => {
+    console.log('[FIELD] calculateTrigger effect, trigger:', calculateTrigger, 'textValue:', textValueRef.current);
     if (calculateTrigger === 0) return; // skip initial mount
     const parsed = parseDisplay(textValueRef.current);
+    console.log('[FIELD] calculateTrigger parsed:', parsed, 'calling onChange');
     if (!isNaN(parsed)) {
       onChange(parsed);
       setTextValue(formatDisplay(parsed));
@@ -273,10 +284,12 @@ function NumberField({ config, value, currency, rate, calculateTrigger, onChange
   }
 
   const handleTextChange = (raw: string) => {
+    console.log('[FIELD] handleTextChange:', raw);
     setTextValue(raw);
     if (debounceTimer) clearTimeout(debounceTimer);
     const timer = setTimeout(() => {
       const parsed = parseDisplay(raw);
+      console.log('[FIELD] debounce fired, raw:', raw, 'parsed:', parsed);
       if (!isNaN(parsed)) onChange(parsed);
     }, 300);
     setDebounceTimer(timer);
@@ -323,8 +336,10 @@ function NumberField({ config, value, currency, rate, calculateTrigger, onChange
         onBlur={handleTextBlur}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
+            console.log('[FIELD] Enter pressed, textValue:', textValueRef.current);
             if (debounceTimer) clearTimeout(debounceTimer);
             const parsed = parseDisplay(textValueRef.current);
+            console.log('[FIELD] Enter parsed:', parsed);
             if (!isNaN(parsed)) {
               onChange(parsed);
               setTextValue(formatDisplay(parsed));
