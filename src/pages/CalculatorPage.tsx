@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { calculateProjection } from '../utils/calculations';
 import { formatLargeNumber } from '../utils/formatters';
@@ -222,7 +222,9 @@ function NumberField({ config, value, currency, rate, onChange }: {
 }) {
   const { label, min, max, step, isCurrency, suffix, placeholder } = config;
   const [textValue, setTextValue] = useState(formatDisplay(value));
-  const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textValueRef = useRef(textValue);
+  textValueRef.current = textValue;
 
   function formatDisplay(v: number): string {
     if (isCurrency) {
@@ -251,16 +253,17 @@ function NumberField({ config, value, currency, rate, onChange }: {
 
   const handleTextChange = (raw: string) => {
     setTextValue(raw);
-    if (debounceTimer) clearTimeout(debounceTimer);
-    const timer = setTimeout(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
       const parsed = parseDisplay(raw);
       if (!isNaN(parsed)) onChange(parsed);
     }, 300);
-    setDebounceTimer(timer);
   };
 
   const handleTextBlur = () => {
-    const parsed = parseDisplay(textValue);
+    // Use ref to avoid stale closure over textValue
+    const currentText = textValueRef.current;
+    const parsed = parseDisplay(currentText);
     if (!isNaN(parsed)) {
       onChange(parsed);
       setTextValue(formatDisplay(parsed));
@@ -276,8 +279,12 @@ function NumberField({ config, value, currency, rate, onChange }: {
 
   useEffect(() => {
     setTextValue(formatDisplay(value));
-    return () => { if (debounceTimer) clearTimeout(debounceTimer); };
-  }, [currency, rate]);
+  }, [value, currency, rate]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, []);
 
   const displayPrefix = isCurrency ? (currency === 'USD' ? '$' : '¥') : '';
   const displaySuffix = !isCurrency && suffix ? suffix : '';
@@ -298,10 +305,13 @@ function NumberField({ config, value, currency, rate, onChange }: {
         value={textValue}
         onChange={(e) => handleTextChange(e.target.value)}
         onBlur={handleTextBlur}
-        onFocus={(e) => {
-          const raw = value.toString();
-          if (isCurrency && currency === 'CNY') e.target.value = (value * rate).toFixed(0);
-          else e.target.value = raw;
+        onFocus={() => {
+          // Show raw number without formatting for easy editing
+          if (isCurrency && currency === 'CNY') {
+            setTextValue((value * rate).toFixed(0));
+          } else {
+            setTextValue(value.toString());
+          }
         }}
         placeholder={placeholder}
         className="w-full touch-target px-4 py-3 rounded-xl border border-[#BAE6FD] bg-white dark:bg-[#1E3A5F]/40 text-min text-[#0F172A] dark:text-slate-200 mb-2 focus:outline-none focus:ring-2 focus:ring-[#0EA5E9] focus:border-transparent placeholder:text-slate-400"
