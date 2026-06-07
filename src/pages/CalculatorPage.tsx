@@ -46,7 +46,7 @@ const FIELDS: FieldConfig[] = [
   { label: 'Initial Investment', field: 'initialInvestment', min: 0, max: 100000, step: 1000, isCurrency: true, placeholder: 'e.g. 10,000' },
   { label: 'Monthly Contribution', field: 'monthlyContribution', min: 0, max: 10000, step: 100, isCurrency: true, placeholder: 'e.g. 500' },
   { label: 'Investment Period', field: 'years', min: 1, max: 40, step: 1, placeholder: 'e.g. 20', suffix: ' yrs' },
-  { label: 'Expected Annual Return', field: 'annualReturn', min: 4, max: 15, step: 0.5, placeholder: 'e.g. 10', suffix: '%' },
+  { label: 'Expected Annual Return', field: 'annualReturn', min: 1, max: 15, step: 0.5, placeholder: 'e.g. 10', suffix: '%' },
 ];
 
 export default function CalculatorPage() {
