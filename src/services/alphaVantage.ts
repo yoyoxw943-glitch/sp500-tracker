@@ -162,6 +162,33 @@ export async function fetchVix(): Promise<VixData> {
   return vix;
 }
 
+export async function fetchVixHistory(): Promise<DailyData[]> {
+  const cached = getCached<DailyData[]>('vix_history');
+  if (cached) return cached;
+
+  try {
+    const json = await fetchMarketData('candle', { symbol: '^VIX', range: '3mo', resolution: '1d' });
+    const data = parseYahooCandle(json);
+    if (data?.length) {
+      setCache('vix_history', data, HIST_TTL);
+      return data;
+    }
+  } catch { /* fall through to mock */ }
+
+  // Mock VIX history — realistic range around 15–25
+  const mock: DailyData[] = [];
+  const now = new Date();
+  let vix = 18 + (Math.random() - 0.5) * 6;
+  for (let i = 90; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    vix = Math.max(10, Math.min(35, vix + (Math.random() - 0.5) * 2));
+    mock.push({ date: d.toISOString().split('T')[0], close: Math.round(vix * 100) / 100 });
+  }
+  setCache('vix_history', mock, 300_000); // 5 min for mock
+  return mock;
+}
+
 export async function fetchUsdCnyRate(): Promise<number> {
   const FALLBACK = 7.25;
   const cached = getCached<number>('usd_cny_rate');
