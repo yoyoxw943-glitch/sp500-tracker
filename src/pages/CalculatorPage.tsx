@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { calculateProjection } from '../utils/calculations';
 import { formatLargeNumber } from '../utils/formatters';
@@ -56,6 +56,7 @@ export default function CalculatorPage() {
   const [scenarios, setScenarios] = useLocalStorage<SavedScenario[]>('calc_scenarios', []);
   const [scenarioName, setScenarioName] = useState('');
   const [showSaved, setShowSaved] = useState(false);
+  const [calculateTrigger, setCalculateTrigger] = useState(0);
 
   useEffect(() => {
     fetchUsdCnyRate().then(setUsdCnyRate).catch(() => {});
@@ -112,9 +113,18 @@ export default function CalculatorPage() {
             value={inputs[cfg.field]}
             currency={currency}
             rate={usdCnyRate}
+            calculateTrigger={calculateTrigger}
             onChange={(v) => update(cfg.field, v)}
           />
         ))}
+        <div className="pt-2">
+          <button
+            onClick={() => setCalculateTrigger((c) => c + 1)}
+            className="w-full touch-target px-6 py-3 rounded-xl bg-[#0EA5E9] text-white font-bold text-base hover:bg-[#0284C7] transition-colors shadow-lg shadow-[#0EA5E9]/20"
+          >
+            Calculate
+          </button>
+        </div>
         <div className="border-t border-[#BAE6FD] dark:border-[#2563EB]/15 pt-4">
           <div className="flex gap-2">
             <input
@@ -213,16 +223,29 @@ export default function CalculatorPage() {
   );
 }
 
-function NumberField({ config, value, currency, rate, onChange }: {
+function NumberField({ config, value, currency, rate, calculateTrigger, onChange }: {
   config: FieldConfig;
   value: number;
   currency: Currency;
   rate: number;
+  calculateTrigger: number;
   onChange: (v: number) => void;
 }) {
   const { label, min, max, step, isCurrency, suffix, placeholder } = config;
   const [textValue, setTextValue] = useState(formatDisplay(value));
   const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const textValueRef = useRef(textValue);
+  textValueRef.current = textValue;
+
+  // Commit text value when Calculate button is clicked
+  useEffect(() => {
+    if (calculateTrigger === 0) return; // skip initial mount
+    const parsed = parseDisplay(textValueRef.current);
+    if (!isNaN(parsed)) {
+      onChange(parsed);
+      setTextValue(formatDisplay(parsed));
+    }
+  }, [calculateTrigger]);
 
   function formatDisplay(v: number): string {
     if (isCurrency) {
@@ -298,6 +321,16 @@ function NumberField({ config, value, currency, rate, onChange }: {
         value={textValue}
         onChange={(e) => handleTextChange(e.target.value)}
         onBlur={handleTextBlur}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            if (debounceTimer) clearTimeout(debounceTimer);
+            const parsed = parseDisplay(textValueRef.current);
+            if (!isNaN(parsed)) {
+              onChange(parsed);
+              setTextValue(formatDisplay(parsed));
+            }
+          }
+        }}
         onFocus={(e) => {
           const raw = value.toString();
           if (isCurrency && currency === 'CNY') e.target.value = (value * rate).toFixed(0);
