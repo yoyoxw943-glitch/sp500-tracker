@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { calculateProjection } from '../utils/calculations';
 import { formatLargeNumber } from '../utils/formatters';
@@ -222,7 +222,7 @@ function NumberField({ config, value, currency, rate, onChange }: {
 }) {
   const { label, min, max, step, isCurrency, suffix, placeholder } = config;
   const [textValue, setTextValue] = useState(formatDisplay(value));
-  const isFocusedRef = useRef(false);
+  const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   function formatDisplay(v: number): string {
     if (isCurrency) {
@@ -251,15 +251,22 @@ function NumberField({ config, value, currency, rate, onChange }: {
 
   const handleTextChange = (raw: string) => {
     setTextValue(raw);
-    // Update value immediately on each keystroke (no debounce)
-    const parsed = parseDisplay(raw);
-    if (!isNaN(parsed)) onChange(parsed);
+    if (debounceTimer) clearTimeout(debounceTimer);
+    const timer = setTimeout(() => {
+      const parsed = parseDisplay(raw);
+      if (!isNaN(parsed)) onChange(parsed);
+    }, 300);
+    setDebounceTimer(timer);
   };
 
   const handleTextBlur = () => {
-    isFocusedRef.current = false;
-    // Format display value on blur
-    setTextValue(formatDisplay(value));
+    const parsed = parseDisplay(textValue);
+    if (!isNaN(parsed)) {
+      onChange(parsed);
+      setTextValue(formatDisplay(parsed));
+    } else {
+      setTextValue(formatDisplay(value));
+    }
   };
 
   const handleSliderChange = (v: number) => {
@@ -267,12 +274,10 @@ function NumberField({ config, value, currency, rate, onChange }: {
     setTextValue(formatDisplay(v));
   };
 
-  // Sync textValue when value changes externally (slider, saved scenario, currency switch)
   useEffect(() => {
-    if (!isFocusedRef.current) {
-      setTextValue(formatDisplay(value));
-    }
-  }, [value, currency, rate]);
+    setTextValue(formatDisplay(value));
+    return () => { if (debounceTimer) clearTimeout(debounceTimer); };
+  }, [currency, rate]);
 
   const displayPrefix = isCurrency ? (currency === 'USD' ? '$' : '¥') : '';
   const displaySuffix = !isCurrency && suffix ? suffix : '';
@@ -293,14 +298,10 @@ function NumberField({ config, value, currency, rate, onChange }: {
         value={textValue}
         onChange={(e) => handleTextChange(e.target.value)}
         onBlur={handleTextBlur}
-        onFocus={() => {
-          isFocusedRef.current = true;
-          // Show raw number without formatting for easy editing
-          if (isCurrency && currency === 'CNY') {
-            setTextValue((value * rate).toFixed(0));
-          } else {
-            setTextValue(value.toString());
-          }
+        onFocus={(e) => {
+          const raw = value.toString();
+          if (isCurrency && currency === 'CNY') e.target.value = (value * rate).toFixed(0);
+          else e.target.value = raw;
         }}
         placeholder={placeholder}
         className="w-full touch-target px-4 py-3 rounded-xl border border-[#BAE6FD] bg-white dark:bg-[#1E3A5F]/40 text-min text-[#0F172A] dark:text-slate-200 mb-2 focus:outline-none focus:ring-2 focus:ring-[#0EA5E9] focus:border-transparent placeholder:text-slate-400"
