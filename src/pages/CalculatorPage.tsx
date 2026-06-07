@@ -222,9 +222,7 @@ function NumberField({ config, value, currency, rate, onChange }: {
 }) {
   const { label, min, max, step, isCurrency, suffix, placeholder } = config;
   const [textValue, setTextValue] = useState(formatDisplay(value));
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const textValueRef = useRef(textValue);
-  textValueRef.current = textValue;
+  const isFocusedRef = useRef(false);
 
   function formatDisplay(v: number): string {
     if (isCurrency) {
@@ -253,23 +251,15 @@ function NumberField({ config, value, currency, rate, onChange }: {
 
   const handleTextChange = (raw: string) => {
     setTextValue(raw);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      const parsed = parseDisplay(raw);
-      if (!isNaN(parsed)) onChange(parsed);
-    }, 300);
+    // Update value immediately on each keystroke (no debounce)
+    const parsed = parseDisplay(raw);
+    if (!isNaN(parsed)) onChange(parsed);
   };
 
   const handleTextBlur = () => {
-    // Use ref to avoid stale closure over textValue
-    const currentText = textValueRef.current;
-    const parsed = parseDisplay(currentText);
-    if (!isNaN(parsed)) {
-      onChange(parsed);
-      setTextValue(formatDisplay(parsed));
-    } else {
-      setTextValue(formatDisplay(value));
-    }
+    isFocusedRef.current = false;
+    // Format display value on blur
+    setTextValue(formatDisplay(value));
   };
 
   const handleSliderChange = (v: number) => {
@@ -277,14 +267,12 @@ function NumberField({ config, value, currency, rate, onChange }: {
     setTextValue(formatDisplay(v));
   };
 
+  // Sync textValue when value changes externally (slider, saved scenario, currency switch)
   useEffect(() => {
-    setTextValue(formatDisplay(value));
+    if (!isFocusedRef.current) {
+      setTextValue(formatDisplay(value));
+    }
   }, [value, currency, rate]);
-
-  // Cleanup debounce timer on unmount
-  useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, []);
 
   const displayPrefix = isCurrency ? (currency === 'USD' ? '$' : '¥') : '';
   const displaySuffix = !isCurrency && suffix ? suffix : '';
@@ -306,6 +294,7 @@ function NumberField({ config, value, currency, rate, onChange }: {
         onChange={(e) => handleTextChange(e.target.value)}
         onBlur={handleTextBlur}
         onFocus={() => {
+          isFocusedRef.current = true;
           // Show raw number without formatting for easy editing
           if (isCurrency && currency === 'CNY') {
             setTextValue((value * rate).toFixed(0));
