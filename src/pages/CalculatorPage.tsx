@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { calculateProjection } from '../utils/calculations';
 import { formatLargeNumber } from '../utils/formatters';
@@ -49,32 +49,84 @@ const FIELDS: FieldConfig[] = [
   { label: 'Expected Annual Return', field: 'annualReturn', min: 1, max: 15, step: 0.5, placeholder: 'e.g. 10', suffix: '%' },
 ];
 
+function parseFieldValue(raw: string, min: number, max: number, isCurrency: boolean, currency: Currency, rate: number): number {
+  const cleaned = raw.replace(/[^0-9.]/g, '');
+  const rawNum = parseFloat(cleaned);
+  if (isNaN(rawNum)) return min;
+
+  if (isCurrency && currency === 'CNY') {
+    const cnyMin = min * rate;
+    const cnyMax = max * rate;
+    const clampedCny = Math.max(cnyMin, Math.min(cnyMax, rawNum));
+    return parseFloat((clampedCny / rate).toFixed(2));
+  }
+
+  return Math.max(min, Math.min(max, rawNum));
+}
+
+function formatFieldValue(v: number, isCurrency: boolean, step: number, currency: Currency, rate: number): string {
+  if (isCurrency) {
+    if (currency === 'CNY') return (v * rate).toLocaleString('en-US', { maximumFractionDigits: 0 });
+    return v.toLocaleString('en-US');
+  }
+  if (step < 1) return v.toFixed(1);
+  return v.toLocaleString('en-US');
+}
+
+function makeTextFieldValue(inputs: CalculatorInputs, cfg: FieldConfig, currency: Currency, rate: number): string {
+  return formatFieldValue(inputs[cfg.field], cfg.isCurrency || false, cfg.step, currency, rate);
+}
+
+function makeAllTextValues(inputs: CalculatorInputs, currency: Currency, rate: number): Record<string, string> {
+  const tv: Record<string, string> = {};
+  for (const cfg of FIELDS) {
+    tv[cfg.field] = makeTextFieldValue(inputs, cfg, currency, rate);
+  }
+  return tv;
+}
+
 export default function CalculatorPage() {
   const [inputs, setInputs] = useState<CalculatorInputs>(DEFAULTS);
+  const [textValues, setTextValues] = useState<Record<string, string>>(() => makeAllTextValues(DEFAULTS, 'USD', 7.25));
   const [currency, setCurrency] = useState<Currency>('USD');
   const [usdCnyRate, setUsdCnyRate] = useState(7.25);
   const [scenarios, setScenarios] = useLocalStorage<SavedScenario[]>('calc_scenarios', []);
   const [scenarioName, setScenarioName] = useState('');
   const [showSaved, setShowSaved] = useState(false);
-  const [calculateTrigger, setCalculateTrigger] = useState(0);
 
   useEffect(() => {
     fetchUsdCnyRate().then(setUsdCnyRate).catch(() => {});
   }, []);
 
-  const projection = (() => {
-    const result = calculateProjection(inputs);
-    console.log('[CALC] projection computed, annualReturn:', inputs.annualReturn, 'finalValue:', result.finalValue);
-    return result;
-  })();
+  // Sync text values when currency or rate changes
+  useEffect(() => {
+    setTextValues(makeAllTextValues(inputs, currency, usdCnyRate));
+  }, [currency, usdCnyRate]);
 
-  const update = useCallback((field: keyof CalculatorInputs, value: number) => {
-    console.log('[CALC] update:', field, '→', value);
+  const projection = calculateProjection(inputs);
+
+  const handleCalculate = useCallback(() => {
+    const newInputs = { ...inputs };
+    for (const cfg of FIELDS) {
+      const raw = textValues[cfg.field] || '';
+      const parsed = parseFieldValue(raw, cfg.min, cfg.max, cfg.isCurrency || false, currency, usdCnyRate);
+      newInputs[cfg.field] = parsed as number;
+    }
+    setInputs(newInputs);
+    // Format text values after calculation
+    setTextValues(makeAllTextValues(newInputs, currency, usdCnyRate));
+  }, [inputs, textValues, currency, usdCnyRate]);
+
+  const updateField = useCallback((field: keyof CalculatorInputs, value: number) => {
     setInputs((prev) => {
       const next = { ...prev, [field]: value };
-      console.log('[CALC] inputs updated, new annualReturn:', next.annualReturn);
+      setTextValues(makeAllTextValues(next, currency, usdCnyRate));
       return next;
     });
+  }, [currency, usdCnyRate]);
+
+  const setTextField = useCallback((field: string, raw: string) => {
+    setTextValues((prev) => ({ ...prev, [field]: raw }));
   }, []);
 
   const saveScenario = () => {
@@ -86,7 +138,10 @@ export default function CalculatorPage() {
     setScenarioName('');
   };
 
-  const loadScenario = (s: SavedScenario) => setInputs({ ...s.inputs });
+  const loadScenario = (s: SavedScenario) => {
+    setInputs({ ...s.inputs });
+    setTextValues(makeAllTextValues(s.inputs, currency, usdCnyRate));
+  };
   const deleteScenario = (id: string) => setScenarios((prev) => prev.filter((s) => s.id !== id));
 
   return (
@@ -120,15 +175,17 @@ export default function CalculatorPage() {
             key={cfg.field}
             config={cfg}
             value={inputs[cfg.field]}
+            textValue={textValues[cfg.field] || ''}
             currency={currency}
             rate={usdCnyRate}
-            calculateTrigger={calculateTrigger}
-            onChange={(v) => update(cfg.field, v)}
+            onTextChange={(raw) => setTextField(cfg.field, raw)}
+            onSliderChange={(v) => updateField(cfg.field, v)}
+            onSubmit={() => handleCalculate()}
           />
         ))}
         <div className="pt-2">
           <button
-            onClick={() => setCalculateTrigger((c) => c + 1)}
+            onClick={handleCalculate}
             className="w-full touch-target px-6 py-3 rounded-xl bg-[#0EA5E9] text-white font-bold text-base hover:bg-[#0284C7] transition-colors shadow-lg shadow-[#0EA5E9]/20"
           >
             Calculate
@@ -219,7 +276,7 @@ export default function CalculatorPage() {
       <div className="card" aria-label="Investment projection chart. Blue area shows your money plus investment gains. Teal area shows the money you put in.">
         <h3 className="text-xl font-semibold mb-3 text-[#0369A1] dark:text-[#F8FAFC]">Growth Over Time</h3>
         <ResponsiveContainer width="100%" height={260}>
-          <AreaChart data={projection.dataPoints}>
+          <AreaChart data={projection.dataPoints} key={projection.finalValue}>
             <XAxis dataKey="year" tick={{ fontSize: 14, fill: '#64748B' }} stroke="#BAE6FD" />
             <YAxis tick={{ fontSize: 14, fill: '#64748B' }} stroke="#BAE6FD" tickFormatter={(v) => fmtLargeCurrency(v, currency, usdCnyRate)} width={65} />
             <Tooltip content={<CustomTooltip currency={currency} rate={usdCnyRate} />} />
@@ -232,88 +289,17 @@ export default function CalculatorPage() {
   );
 }
 
-function NumberField({ config, value, currency, rate, calculateTrigger, onChange }: {
+function NumberField({ config, value, textValue, currency, rate, onTextChange, onSliderChange, onSubmit }: {
   config: FieldConfig;
   value: number;
+  textValue: string;
   currency: Currency;
   rate: number;
-  calculateTrigger: number;
-  onChange: (v: number) => void;
+  onTextChange: (raw: string) => void;
+  onSliderChange: (v: number) => void;
+  onSubmit: () => void;
 }) {
   const { label, min, max, step, isCurrency, suffix, placeholder } = config;
-  const [textValue, setTextValue] = useState(formatDisplay(value));
-  const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
-  const textValueRef = useRef(textValue);
-  textValueRef.current = textValue;
-
-  // Commit text value when Calculate button is clicked
-  useEffect(() => {
-    console.log('[FIELD] calculateTrigger effect, trigger:', calculateTrigger, 'textValue:', textValueRef.current);
-    if (calculateTrigger === 0) return; // skip initial mount
-    const parsed = parseDisplay(textValueRef.current);
-    console.log('[FIELD] calculateTrigger parsed:', parsed, 'calling onChange');
-    if (!isNaN(parsed)) {
-      onChange(parsed);
-      setTextValue(formatDisplay(parsed));
-    }
-  }, [calculateTrigger]);
-
-  function formatDisplay(v: number): string {
-    if (isCurrency) {
-      if (currency === 'CNY') return (v * rate).toLocaleString('en-US', { maximumFractionDigits: 0 });
-      return v.toLocaleString('en-US');
-    }
-    if (step < 1) return v.toFixed(1);
-    return v.toLocaleString('en-US');
-  }
-
-  function parseDisplay(raw: string): number {
-    let cleaned = raw.replace(/[^0-9.]/g, '');
-    const rawNum = parseFloat(cleaned);
-    if (isNaN(rawNum)) return min;
-
-    if (isCurrency && currency === 'CNY') {
-      // Clamp in CNY space before converting to USD
-      const cnyMin = min * rate;
-      const cnyMax = max * rate;
-      const clampedCny = Math.max(cnyMin, Math.min(cnyMax, rawNum));
-      return parseFloat((clampedCny / rate).toFixed(2));
-    }
-
-    return Math.max(min, Math.min(max, rawNum));
-  }
-
-  const handleTextChange = (raw: string) => {
-    console.log('[FIELD] handleTextChange:', raw);
-    setTextValue(raw);
-    if (debounceTimer) clearTimeout(debounceTimer);
-    const timer = setTimeout(() => {
-      const parsed = parseDisplay(raw);
-      console.log('[FIELD] debounce fired, raw:', raw, 'parsed:', parsed);
-      if (!isNaN(parsed)) onChange(parsed);
-    }, 300);
-    setDebounceTimer(timer);
-  };
-
-  const handleTextBlur = () => {
-    const parsed = parseDisplay(textValue);
-    if (!isNaN(parsed)) {
-      onChange(parsed);
-      setTextValue(formatDisplay(parsed));
-    } else {
-      setTextValue(formatDisplay(value));
-    }
-  };
-
-  const handleSliderChange = (v: number) => {
-    onChange(v);
-    setTextValue(formatDisplay(v));
-  };
-
-  useEffect(() => {
-    setTextValue(formatDisplay(value));
-    return () => { if (debounceTimer) clearTimeout(debounceTimer); };
-  }, [currency, rate]);
 
   const displayPrefix = isCurrency ? (currency === 'USD' ? '$' : '¥') : '';
   const displaySuffix = !isCurrency && suffix ? suffix : '';
@@ -325,32 +311,15 @@ function NumberField({ config, value, currency, rate, calculateTrigger, onChange
       <div className="flex justify-between items-baseline mb-2">
         <span className="text-min text-slate-500">{label}</span>
         <span className="text-min font-semibold tabular-nums text-[#0F172A] dark:text-slate-200">
-          {displayPrefix}{formatDisplay(value)}{displaySuffix}
+          {displayPrefix}{formatFieldValue(value, isCurrency || false, step, currency, rate)}{displaySuffix}
         </span>
       </div>
       <input
         type="text"
         inputMode="decimal"
         value={textValue}
-        onChange={(e) => handleTextChange(e.target.value)}
-        onBlur={handleTextBlur}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            console.log('[FIELD] Enter pressed, textValue:', textValueRef.current);
-            if (debounceTimer) clearTimeout(debounceTimer);
-            const parsed = parseDisplay(textValueRef.current);
-            console.log('[FIELD] Enter parsed:', parsed);
-            if (!isNaN(parsed)) {
-              onChange(parsed);
-              setTextValue(formatDisplay(parsed));
-            }
-          }
-        }}
-        onFocus={(e) => {
-          const raw = value.toString();
-          if (isCurrency && currency === 'CNY') e.target.value = (value * rate).toFixed(0);
-          else e.target.value = raw;
-        }}
+        onChange={(e) => onTextChange(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') onSubmit(); }}
         placeholder={placeholder}
         className="w-full touch-target px-4 py-3 rounded-xl border border-[#BAE6FD] bg-white dark:bg-[#1E3A5F]/40 text-min text-[#0F172A] dark:text-slate-200 mb-2 focus:outline-none focus:ring-2 focus:ring-[#0EA5E9] focus:border-transparent placeholder:text-slate-400"
         aria-label={label}
@@ -361,7 +330,7 @@ function NumberField({ config, value, currency, rate, calculateTrigger, onChange
         max={max}
         step={step}
         value={value}
-        onChange={(e) => handleSliderChange(parseFloat(e.target.value))}
+        onChange={(e) => onSliderChange(parseFloat(e.target.value))}
         className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-[#0EA5E9]"
         aria-label={`${label} slider`}
       />
