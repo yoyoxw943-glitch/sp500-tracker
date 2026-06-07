@@ -103,9 +103,11 @@ export default function CalculatorPage() {
     setTextValues(makeAllTextValues(inputs, currency, usdCnyRate));
   }, [currency, usdCnyRate]);
 
+  const [calcCount, setCalcCount] = useState(0);
   const projection = calculateProjection(inputs);
 
   const handleCalculate = useCallback(() => {
+    setCalcCount((c) => c + 1);
     const newInputs = { ...inputs };
     for (const cfg of FIELDS) {
       const raw = textValues[cfg.field] || '';
@@ -118,11 +120,8 @@ export default function CalculatorPage() {
   }, [inputs, textValues, currency, usdCnyRate]);
 
   const updateField = useCallback((field: keyof CalculatorInputs, value: number) => {
-    setInputs((prev) => {
-      const next = { ...prev, [field]: value };
-      setTextValues(makeAllTextValues(next, currency, usdCnyRate));
-      return next;
-    });
+    setInputs((prev) => ({ ...prev, [field]: value }));
+    setTextValues((prev) => ({ ...prev, [field]: formatFieldValue(value, FIELDS.find(c => c.field === field)?.isCurrency || false, FIELDS.find(c => c.field === field)?.step || 1, currency, usdCnyRate) }));
   }, [currency, usdCnyRate]);
 
   const setTextField = useCallback((field: string, raw: string) => {
@@ -246,7 +245,7 @@ export default function CalculatorPage() {
       )}
 
       <div className="card">
-        <h3 className="text-xl font-semibold mb-4 text-[#0369A1] dark:text-[#F8FAFC]">Projection Results</h3>
+        <h3 className="text-xl font-semibold mb-4 text-[#0369A1] dark:text-[#F8FAFC]">Projection Results <span className="text-min font-normal text-slate-400">(calc #{calcCount}, annualReturn={inputs.annualReturn}%, years={inputs.years})</span></h3>
         <div className="grid grid-cols-2 gap-4 mb-5">
           <div>
             <p className="text-min text-slate-500 mb-1">Annual Contribution</p>
