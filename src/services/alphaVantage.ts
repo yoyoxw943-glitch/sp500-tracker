@@ -167,7 +167,7 @@ export async function fetchVixHistory(): Promise<DailyData[]> {
   if (cached) return cached;
 
   try {
-    const json = await fetchMarketData('candle', { symbol: '^VIX', range: '1y', resolution: '1d' });
+    const json = await fetchMarketData('candle', { symbol: '^VIX', range: 'max', resolution: '1d' });
     const data = parseYahooCandle(json);
     if (data?.length) {
       setCache('vix_history', data, HIST_TTL);
@@ -175,14 +175,16 @@ export async function fetchVixHistory(): Promise<DailyData[]> {
     }
   } catch { /* fall through to mock */ }
 
-  // Mock VIX history — realistic range around 15–25
+  // Mock VIX history — realistic range back to ~1993
   const mock: DailyData[] = [];
   const now = new Date();
-  let vix = 18 + (Math.random() - 0.5) * 6;
-  for (let i = 365; i >= 0; i--) {
+  const start = new Date('1993-01-01');
+  const totalDays = Math.floor((now.getTime() - start.getTime()) / 86_400_000);
+  let vix = 15 + Math.random() * 10;
+  for (let i = totalDays; i >= 0; i -= Math.max(1, Math.floor(totalDays / 8000))) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
-    vix = Math.max(10, Math.min(35, vix + (Math.random() - 0.5) * 2));
+    vix = Math.max(9, Math.min(85, vix + (Math.random() - 0.48) * 2.5));
     mock.push({ date: d.toISOString().split('T')[0], close: Math.round(vix * 100) / 100 });
   }
   setCache('vix_history', mock, 300_000); // 5 min for mock

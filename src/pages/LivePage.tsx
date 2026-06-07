@@ -164,7 +164,7 @@ export default function LivePage() {
             {/* VIX Historical Chart — full 1-year history */}
             {vixHistory.length > 1 && (
               <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-700">
-                <p className="text-min text-slate-500 mb-2">1-Year Historical Trend</p>
+                <p className="text-min text-slate-500 mb-2">All-Time Historical Trend (since 1993)</p>
                 <ResponsiveContainer width="100%" height={280}>
                   <AreaChart data={vixHistory}>
                     <defs>
