@@ -23,6 +23,20 @@ export default function HistoryPage() {
   const [chartLoading, setChartLoading] = useState(false);
   const [vixHistory, setVixHistory] = useState<DailyData[]>([]);
 
+  const vixAnnual = useMemo(() => {
+    if (vixHistory.length === 0) return [];
+    const byYear: Record<number, { sum: number; count: number }> = {};
+    for (const d of vixHistory) {
+      const year = new Date(d.date).getFullYear();
+      if (!byYear[year]) byYear[year] = { sum: 0, count: 0 };
+      byYear[year].sum += d.close;
+      byYear[year].count++;
+    }
+    return Object.entries(byYear)
+      .map(([year, { sum, count }]) => ({ year: Number(year), value: Math.round(sum / count * 100) / 100 }))
+      .sort((a, b) => a.year - b.year);
+  }, [vixHistory]);
+
   const annualData = useMemo(() => {
     const now = new Date().getFullYear();
     if (range === '1Y') return HISTORICAL_RETURNS.filter((d) => d.year >= now - 1);
@@ -139,22 +153,21 @@ export default function HistoryPage() {
       )}
 
       {/* VIX All-Time History */}
-      {vixHistory.length > 1 && (
-        <div className="card">
-          <h3 className="text-xl font-semibold mb-3 text-[#0369A1] dark:text-[#F8FAFC]">VIX All-Time History (since 1993)</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={vixHistory}>
-              <defs>
-                <linearGradient id="vixHistGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#ef4444" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(d: string) => d.slice(5)} interval="preserveStartEnd" />
-              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11, fill: '#94a3b8' }} width={35} />
-              <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '12px', fontSize: '14px' }} formatter={(v: any) => [Number(v).toFixed(2), 'VIX']} labelFormatter={(l: any) => `Date: ${l}`} />
-              <Area type="monotone" dataKey="close" stroke="#ef4444" strokeWidth={2} fill="url(#vixHistGradient)" />
-            </AreaChart>
+      {vixAnnual.length > 1 && (
+        <div className="card grid-lines">
+          <h3 className="text-xl font-semibold mb-1 text-[#0369A1] dark:text-[#F8FAFC]">VIX Annual Average — Since 1993</h3>
+          <p className="text-sm text-slate-400 mb-3">CBOE Volatility Index yearly average close</p>
+          <ResponsiveContainer width="100%" height={340}>
+            <BarChart data={vixAnnual}>
+              <XAxis dataKey="year" tick={{ fontSize: 13, fill: '#64748B' }} stroke="#BAE6FD" interval={1} />
+              <YAxis tick={{ fontSize: 14, fill: '#64748B' }} stroke="#BAE6FD" width={35} />
+              <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '12px', fontSize: '15px', color: '#0F172A' }} formatter={(v: any) => [Number(v).toFixed(2), 'VIX']} labelFormatter={(l: any) => `Year: ${l}`} />
+              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                {vixAnnual.map((entry, i) => (
+                  <Cell key={i} fill={entry.value >= 25 ? '#DC2626' : entry.value >= 20 ? '#f59e0b' : '#16A34A'} />
+                ))}
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </div>
       )}
