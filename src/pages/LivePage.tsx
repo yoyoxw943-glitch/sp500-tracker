@@ -8,17 +8,10 @@ import type { Sp500Quote, DailyData } from '../types';
 import { ChartSkeleton, LineSkeleton } from '../components/LoadingSkeleton';
 import ErrorState from '../components/ErrorState';
 
-interface FearGreedData {
-  value: number;
-  classification: string;
-}
-
 export default function LivePage() {
   const [quote, setQuote] = useState<Sp500Quote | null>(null);
   const [daily, setDaily] = useState<DailyData[]>([]);
   const [overview, setOverview] = useState<Sp500Overview | null>(null);
-  const [fg, setFg] = useState<FearGreedData | null>(null);
-  const [fgHistory, setFgHistory] = useState<{ date: string; value: number }[]>([]);
   const [vix, setVix] = useState<VixData | null>(null);
   const [vixHistory, setVixHistory] = useState<DailyData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,26 +34,6 @@ export default function LivePage() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   useEffect(() => {
-    // Fear & Greed — try to get current + historical from CNN
-    fetch('https://production.dataviz.cnn.io/index/fearandgreed/graphdata')
-      .then((r) => r.json())
-      .then((data) => {
-        if (data?.fear_and_greed) {
-          setFg({ value: data.fear_and_greed.score, classification: data.fear_and_greed.rating });
-        }
-        // Try multiple possible paths for historical data
-        const histData = data?.fear_and_greed_historical?.data
-          || data?.historical
-          || data?.data;
-        if (Array.isArray(histData) && histData.length > 0) {
-          const parsed = histData.map((d: any) => ({
-            date: new Date(d.x || d.timestamp || d.date).toISOString().split('T')[0],
-            value: d.y ?? d.value ?? d.score ?? 50,
-          })).filter((d: { date: string; value: number }) => d.value > 0 && d.value <= 100);
-          if (parsed.length > 0) setFgHistory(parsed);
-        }
-      })
-      .catch(() => {});
     fetchVix()
       .then(setVix)
       .catch(() => {});
@@ -172,102 +145,49 @@ export default function LivePage() {
         </div>
       </div>
 
-      {/* Fear & Greed */}
+      {/* VIX */}
       <div className="card">
-        <h3 className="text-xl font-semibold mb-4 text-[#0369A1] dark:text-[#F8FAFC]">Fear & Greed Index</h3>
-        {fg ? (
+        <h3 className="text-xl font-semibold mb-4 text-[#0369A1] dark:text-[#F8FAFC]">VIX (Volatility Index)</h3>
+        {vix ? (
           <>
             <div className="flex items-center gap-5">
               <div className="flex-1">
-                <div className="h-5 rounded-full bg-gradient-to-r from-red-500 via-yellow-400 to-green-500 relative">
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 w-6 h-6 bg-white border-2 border-slate-300 rounded-full shadow-lg"
-                    style={{ left: `${Math.min(95, Math.max(2, fg.value))}%` }}
-                    aria-label={`Fear and Greed Index: ${fg.value} - ${fg.classification}`}
-                  />
-                </div>
-                <div className="flex justify-between text-sm text-slate-400 mt-2">
-                  <span>Extreme Fear</span>
-                  <span>Neutral</span>
-                  <span>Extreme Greed</span>
-                </div>
+                <p className="text-min text-slate-500">Often called the "fear index" — measures expected S&P 500 volatility over the next 30 days</p>
               </div>
               <div className="text-center shrink-0">
-                <p className="stat-mega">{fg.value}</p>
-                <p className="text-min text-slate-500 mt-1">{fg.classification}</p>
+                <p className="stat-mega tabular-nums">{vix.value.toFixed(2)}</p>
+                <p className={`text-min tabular-nums mt-1 ${vix.change >= 0 ? 'value-up' : 'value-down'}`}>
+                  {vix.change >= 0 ? '+' : ''}{vix.change.toFixed(2)} ({vix.changePercent >= 0 ? '+' : ''}{vix.changePercent.toFixed(2)}%)
+                </p>
               </div>
             </div>
-            {/* F&G Historical Chart */}
-            {fgHistory.length > 1 && (
+            {/* VIX Historical Chart — full 1-year history */}
+            {vixHistory.length > 1 && (
               <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-700">
-                <p className="text-min text-slate-500 mb-2">Historical Trend (90 days)</p>
-                <ResponsiveContainer width="100%" height={160}>
-                  <AreaChart data={fgHistory}>
+                <p className="text-min text-slate-500 mb-2">1-Year Historical Trend</p>
+                <ResponsiveContainer width="100%" height={280}>
+                  <AreaChart data={vixHistory}>
                     <defs>
-                      <linearGradient id="fgGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
+                      <linearGradient id="vixGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.25} />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(d: string) => d.slice(5)} interval="preserveStartEnd" />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#94a3b8' }} width={30} />
-                    <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '12px', fontSize: '14px' }} formatter={(v: any) => [v, 'Fear & Greed']} labelFormatter={(l: any) => `Date: ${l}`} />
-                    <Area type="monotone" dataKey="value" stroke="#f59e0b" strokeWidth={2} fill="url(#fgGradient)" />
+                    <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11, fill: '#94a3b8' }} width={35} />
+                    <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '12px', fontSize: '14px' }} formatter={(v: any) => [Number(v).toFixed(2), 'VIX']} labelFormatter={(l: any) => `Date: ${l}`} />
+                    <Area type="monotone" dataKey="close" stroke="#ef4444" strokeWidth={2} fill="url(#vixGradient)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             )}
+            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 text-sm text-slate-500 dark:text-slate-400">
+              <p><strong className="text-slate-600 dark:text-slate-300">VIX</strong> — The CBOE Volatility Index. Below 12 is calm, 12–20 is normal, 20–30 is elevated, and above 30 signals high fear.</p>
+            </div>
           </>
         ) : (
-          <p className="text-min text-slate-400">Fear & Greed data unavailable</p>
+          <p className="text-min text-slate-400">VIX data unavailable</p>
         )}
-
-        {/* VIX Section */}
-        <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-          {vix ? (
-            <>
-              <div className="flex items-center gap-5">
-                <div className="flex-1">
-                  <p className="text-min text-slate-600 dark:text-slate-300">VIX (Volatility Index)</p>
-                  <p className="text-sm text-slate-400 mt-0.5">Often called the "fear index"</p>
-                </div>
-                <div className="text-center shrink-0">
-                  <p className="stat-mega tabular-nums">{vix.value.toFixed(2)}</p>
-                  <p className={`text-min tabular-nums mt-1 ${vix.change >= 0 ? 'value-up' : 'value-down'}`}>
-                    {vix.change >= 0 ? '+' : ''}{vix.change.toFixed(2)} ({vix.changePercent >= 0 ? '+' : ''}{vix.changePercent.toFixed(2)}%)
-                  </p>
-                </div>
-              </div>
-              {/* VIX Historical Chart */}
-              {vixHistory.length > 1 && (
-                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                  <p className="text-min text-slate-500 mb-2">VIX Historical Trend (90 days)</p>
-                  <ResponsiveContainer width="100%" height={160}>
-                    <AreaChart data={vixHistory}>
-                      <defs>
-                        <linearGradient id="vixGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#ef4444" stopOpacity={0.25} />
-                          <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(d: string) => d.slice(5)} interval="preserveStartEnd" />
-                      <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11, fill: '#94a3b8' }} width={35} />
-                      <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '12px', fontSize: '14px' }} formatter={(v: any) => [Number(v).toFixed(2), 'VIX']} labelFormatter={(l: any) => `Date: ${l}`} />
-                      <Area type="monotone" dataKey="close" stroke="#ef4444" strokeWidth={2} fill="url(#vixGradient)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-min text-slate-400">VIX data unavailable</p>
-          )}
-        </div>
-
-        <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 text-sm text-slate-500 dark:text-slate-400 space-y-2">
-          <p><strong className="text-slate-600 dark:text-slate-300">Fear & Greed Index</strong> — CNN's sentiment gauge (0–100). Low values signal fear and potential buying opportunities; high values signal greed and caution.</p>
-          <p><strong className="text-slate-600 dark:text-slate-300">VIX</strong> — The CBOE Volatility Index measures expected S&P 500 volatility over the next 30 days. Below 12 is calm, 12–20 is normal, 20–30 is elevated, and above 30 signals high fear.</p>
-        </div>
       </div>
     </div>
   );

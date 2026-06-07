@@ -167,7 +167,7 @@ export async function fetchVixHistory(): Promise<DailyData[]> {
   if (cached) return cached;
 
   try {
-    const json = await fetchMarketData('candle', { symbol: '^VIX', range: '3mo', resolution: '1d' });
+    const json = await fetchMarketData('candle', { symbol: '^VIX', range: '1y', resolution: '1d' });
     const data = parseYahooCandle(json);
     if (data?.length) {
       setCache('vix_history', data, HIST_TTL);
@@ -179,7 +179,7 @@ export async function fetchVixHistory(): Promise<DailyData[]> {
   const mock: DailyData[] = [];
   const now = new Date();
   let vix = 18 + (Math.random() - 0.5) * 6;
-  for (let i = 90; i >= 0; i--) {
+  for (let i = 365; i >= 0; i--) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
     vix = Math.max(10, Math.min(35, vix + (Math.random() - 0.5) * 2));
