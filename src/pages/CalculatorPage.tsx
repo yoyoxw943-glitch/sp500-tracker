@@ -61,7 +61,7 @@ export default function CalculatorPage() {
     fetchUsdCnyRate().then(setUsdCnyRate).catch(() => {});
   }, []);
 
-  const projection = useMemo(() => calculateProjection(inputs), [inputs]);
+  const projection = calculateProjection(inputs);
 
   const update = useCallback((field: keyof CalculatorInputs, value: number) => {
     setInputs((prev) => ({ ...prev, [field]: value }));
