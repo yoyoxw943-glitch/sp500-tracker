@@ -163,14 +163,15 @@ export async function fetchVix(): Promise<VixData> {
 }
 
 export async function fetchVixHistory(): Promise<DailyData[]> {
-  const cached = getCached<DailyData[]>('vix_history');
+  const cacheKey = 'vix_history_v2';
+  const cached = getCached<DailyData[]>(cacheKey);
   if (cached) return cached;
 
   try {
-    const json = await fetchMarketData('candle', { symbol: '^VIX', range: 'max', resolution: '1d' });
+    const json = await fetchMarketData('candle', { symbol: '^VIX', range: 'max', resolution: '1wk' });
     const data = parseYahooCandle(json);
     if (data?.length) {
-      setCache('vix_history', data, HIST_TTL);
+      setCache(cacheKey, data, HIST_TTL);
       return data;
     }
   } catch { /* fall through to mock */ }
@@ -181,13 +182,13 @@ export async function fetchVixHistory(): Promise<DailyData[]> {
   const start = new Date('1993-01-01');
   const totalDays = Math.floor((now.getTime() - start.getTime()) / 86_400_000);
   let vix = 15 + Math.random() * 10;
-  for (let i = totalDays; i >= 0; i -= Math.max(1, Math.floor(totalDays / 8000))) {
+  for (let i = totalDays; i >= 0; i -= 7) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
     vix = Math.max(9, Math.min(85, vix + (Math.random() - 0.48) * 2.5));
     mock.push({ date: d.toISOString().split('T')[0], close: Math.round(vix * 100) / 100 });
   }
-  setCache('vix_history', mock, 300_000); // 5 min for mock
+  setCache(cacheKey, mock, 300_000); // 5 min for mock
   return mock;
 }
 
