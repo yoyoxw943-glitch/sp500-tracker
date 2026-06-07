@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
-import { BarChart, Bar, LineChart, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, LineChart, Line, Area, AreaChart, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { HISTORICAL_RETURNS } from '../utils/calculations';
-import { fetchHistory, type HistoryRange } from '../services/alphaVantage';
+import { fetchHistory, fetchVixHistory, type HistoryRange } from '../services/alphaVantage';
+import type { DailyData } from '../types';
 
 type Range = '1W' | '1M' | '3M' | '6M' | '1Y' | '3Y' | '5Y' | '10Y' | '20Y' | '30Y' | 'ALL';
 const ALL_RANGES: Range[] = ['1W', '1M', '3M', '6M', '1Y', '3Y', '5Y', '10Y', '20Y', '30Y', 'ALL'];
@@ -20,6 +21,7 @@ export default function HistoryPage() {
   const [showBear, setShowBear] = useState(false);
   const [chartData, setChartData] = useState<{ date: string; price: number }[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
+  const [vixHistory, setVixHistory] = useState<DailyData[]>([]);
 
   const annualData = useMemo(() => {
     const now = new Date().getFullYear();
@@ -55,6 +57,12 @@ export default function HistoryPage() {
       });
     return () => { cancelled = true; };
   }, [range]);
+
+  useEffect(() => {
+    fetchVixHistory()
+      .then(setVixHistory)
+      .catch(() => {});
+  }, []);
 
   const isShortRange = SHORT_RANGES.includes(range);
   const isYearRange = YEAR_RANGES.includes(range);
@@ -127,6 +135,27 @@ export default function HistoryPage() {
           ) : (
             <div className="text-center py-10 text-slate-400">No data for this range</div>
           )}
+        </div>
+      )}
+
+      {/* VIX All-Time History */}
+      {vixHistory.length > 1 && (
+        <div className="card">
+          <h3 className="text-xl font-semibold mb-3 text-[#0369A1] dark:text-[#F8FAFC]">VIX All-Time History (since 1993)</h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={vixHistory}>
+              <defs>
+                <linearGradient id="vixHistGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ef4444" stopOpacity={0.25} />
+                  <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(d: string) => d.slice(5)} interval="preserveStartEnd" />
+              <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11, fill: '#94a3b8' }} width={35} />
+              <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '12px', fontSize: '14px' }} formatter={(v: any) => [Number(v).toFixed(2), 'VIX']} labelFormatter={(l: any) => `Date: ${l}`} />
+              <Area type="monotone" dataKey="close" stroke="#ef4444" strokeWidth={2} fill="url(#vixHistGradient)" />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
       )}
 

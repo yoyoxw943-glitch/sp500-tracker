@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { fetchQuote, fetchDaily, fetchOverview, fetchVix, fetchVixHistory } from '../services/alphaVantage';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { fetchQuote, fetchDaily, fetchOverview, fetchVix } from '../services/alphaVantage';
 import type { Sp500Overview, VixData } from '../services/alphaVantage';
 import { useCountdown } from '../hooks/useCountdown';
 import { formatCurrency, formatPercent, formatLargeNumber } from '../utils/formatters';
@@ -13,7 +13,6 @@ export default function LivePage() {
   const [daily, setDaily] = useState<DailyData[]>([]);
   const [overview, setOverview] = useState<Sp500Overview | null>(null);
   const [vix, setVix] = useState<VixData | null>(null);
-  const [vixHistory, setVixHistory] = useState<DailyData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,9 +35,6 @@ export default function LivePage() {
   useEffect(() => {
     fetchVix()
       .then(setVix)
-      .catch(() => {});
-    fetchVixHistory()
-      .then(setVixHistory)
       .catch(() => {});
   }, []);
 
@@ -153,6 +149,7 @@ export default function LivePage() {
             <div className="flex items-center gap-5">
               <div className="flex-1">
                 <p className="text-min text-slate-500">Often called the "fear index" — measures expected S&P 500 volatility over the next 30 days</p>
+                <p className="text-sm text-slate-400 mt-0.5">See <a href="/history" className="text-[#0EA5E9] underline">History page</a> for all-time VIX data since 1993</p>
               </div>
               <div className="text-center shrink-0">
                 <p className="stat-mega tabular-nums">{vix.value.toFixed(2)}</p>
@@ -161,26 +158,6 @@ export default function LivePage() {
                 </p>
               </div>
             </div>
-            {/* VIX Historical Chart — full 1-year history */}
-            {vixHistory.length > 1 && (
-              <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-700">
-                <p className="text-min text-slate-500 mb-2">All-Time Historical Trend (since 1993)</p>
-                <ResponsiveContainer width="100%" height={280}>
-                  <AreaChart data={vixHistory}>
-                    <defs>
-                      <linearGradient id="vixGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.25} />
-                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(d: string) => d.slice(5)} interval="preserveStartEnd" />
-                    <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11, fill: '#94a3b8' }} width={35} />
-                    <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid #BAE6FD', borderRadius: '12px', fontSize: '14px' }} formatter={(v: any) => [Number(v).toFixed(2), 'VIX']} labelFormatter={(l: any) => `Date: ${l}`} />
-                    <Area type="monotone" dataKey="close" stroke="#ef4444" strokeWidth={2} fill="url(#vixGradient)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            )}
             <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 text-sm text-slate-500 dark:text-slate-400">
               <p><strong className="text-slate-600 dark:text-slate-300">VIX</strong> — The CBOE Volatility Index. Below 12 is calm, 12–20 is normal, 20–30 is elevated, and above 30 signals high fear.</p>
             </div>
